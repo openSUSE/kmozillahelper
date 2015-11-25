@@ -1,22 +1,23 @@
-cmake_minimum_required( VERSION 2.6 )
+cmake_minimum_required(VERSION 2.8.12)
 
 project( kmozillahelper )
 
-find_package( KDE4 REQUIRED )
-include( KDE4Defaults )
-include( MacroLibrary )
-add_definitions( ${QT_DEFINITIONS} ${KDE4_DEFINITIONS} -DHAVE_CONFIG_H=1 )
-include_directories( ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR} ${KDE4_INCLUDES} )
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-########### next target ###############
+find_package(ECM 1.0.0 REQUIRED NO_MODULE)
 
-set( kmozillahelper_SRCS
-     main.cpp )
+set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH} ${ECM_KDE_MODULE_DIR})
 
-kde4_add_executable( kmozillahelper ${kmozillahelper_SRCS} )
-target_link_libraries( kmozillahelper ${KDE4_KFILE_LIBS} )
+include(KDEInstallDirs)
+include(KDECMakeSettings)
+include(FeatureSummary)
+
+find_package(KF5 REQUIRED COMPONENTS Notifications KIO WindowSystem I18n)
+
+add_executable(kmozillahelper main.cpp)
+
+target_link_libraries(kmozillahelper KF5::I18n KF5::KIOWidgets KF5::Notifications KF5::WindowSystem)
 
 # TODO hardcoded path?
-install( TARGETS kmozillahelper DESTINATION /usr/lib/mozilla/ )
-
-install( FILES kmozillahelper.notifyrc  DESTINATION  ${DATA_INSTALL_DIR}/kmozillahelper )
+install(TARGETS kmozillahelper DESTINATION /usr/lib/mozilla/)
+install(FILES kmozillahelper.notifyrc DESTINATION ${DATA_INSTALL_DIR}/kmozillahelper)
