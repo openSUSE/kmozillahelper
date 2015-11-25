@@ -18,6 +18,5 @@ add_executable(kmozillahelper main.cpp)
 
 target_link_libraries(kmozillahelper KF5::I18n KF5::KIOWidgets KF5::Notifications KF5::WindowSystem)
 
-# TODO hardcoded path?
-install(TARGETS kmozillahelper DESTINATION /usr/lib/mozilla/)
+install(TARGETS kmozillahelper DESTINATION ${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}/mozilla/)
 install(FILES kmozillahelper.notifyrc DESTINATION ${DATA_INSTALL_DIR}/kmozillahelper)
