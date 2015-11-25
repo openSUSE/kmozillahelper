@@ -24,17 +24,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef MAIN_H
 #define MAIN_H
 
-#include <kapplication.h>
-#include <kmimetype.h>
-#include <qsocketnotifier.h>
-#include <qtextstream.h>
+#include <QtCore/QMimeType>
+#include <QtCore/QSocketNotifier>
+#include <QtCore/QTextStream>
 
-class App
-    : public KApplication
+class Helper
+    : public QObject
     {
     Q_OBJECT
     public:
-        App();
+        Helper();
     private:
         bool handleCheck();
         bool handleGetProxy();
@@ -55,7 +54,7 @@ class App
         bool handleIsDefaultBrowser();
         bool handleSetDefaultBrowser();
         bool handleDownloadFinished();
-        bool writeMimeInfo( KMimeType::Ptr mime );
+        bool writeMimeInfo( QMimeType mime );
         QString getAppForProtocol( const QString& protocol );
         bool readArguments( int mincount );
         QString getArgument();
