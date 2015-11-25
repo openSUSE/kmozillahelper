@@ -23,61 +23,64 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "main.h"
 
-#include <assert.h>
-#include <kaboutdata.h>
-#include <kcmdlineargs.h>
-#include <kdebug.h>
-#include <kdirselectdialog.h>
-#include <kfiledialog.h>
-#include <kfilefiltercombo.h>
-#include <kio/job.h>
-#include <kio/netaccess.h>
-#include <kmessagebox.h>
-#include <kmimetypetrader.h>
-#include <knotification.h>
-#include <kopenwithdialog.h>
-#include <kprotocolinfo.h>
-#include <kprotocolmanager.h>
-#include <krecentdocument.h>
-#include <krun.h>
-#include <kservice.h>
-#include <kshell.h>
-#include <kstandarddirs.h>
-#include <kwindowsystem.h>
-#include <kprocess.h>
-#include <stdio.h>
+#include <cassert>
 #include <unistd.h>
+
+#include <QtCore/QCommandLineParser>
+#include <QtCore/QMimeDatabase>
+#include <QtGui/QIcon>
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QFileDialog>
+
+#include <KConfigCore/KConfigGroup>
+#include <KConfigCore/KSharedConfig>
+#include <KCoreAddons/KAboutData>
+#include <KCoreAddons/KShell>
+#include <KCoreAddons/KProcess>
+#include <KI18n/KLocalizedString>
+#include <KIOCore/KProtocolManager>
+#include <KIOCore/KRecentDocument>
+#include <KIOWidgets/KOpenWithDialog>
+#include <KIOWidgets/KRun>
+#include <KNotifications/KNotification>
+#include <KService/KMimeTypeTrader>
+#include <KWindowSystem/KWindowSystem>
 
 //#define DEBUG_KDE
 
 #define HELPER_VERSION 6
-#define APP_HELPER_VERSION "0.6.4"
+#define APP_HELPER_VERSION "0.6.5"
 
 int main( int argc, char* argv[] )
     {
-    KAboutData about( "kmozillahelper", "kdelibs4", ki18n( "KMozillaHelper" ), APP_HELPER_VERSION );
-    about.setBugAddress( "https://bugzilla.novell.com/enter_bug.cgi");
-#if KDE_IS_VERSION( 4, 1, 0 )
-    about.setProgramIconName( "firefox" ); // TODO what about other mozilla apps?
-#endif
-    KCmdLineArgs::init( argc, argv, &about );
-    App app;
-    app.disableSessionManagement();
-    app.setQuitOnLastWindowClosed( false );
+    QApplication app(argc, argv);
+
+    KAboutData about( "kmozillahelper", i18n( "KMozillaHelper" ), APP_HELPER_VERSION );
+    about.setBugAddress( "https://bugzilla.opensuse.org/enter_bug.cgi");
+    KAboutData::setApplicationData(about);
+    QApplication::setWindowIcon(QIcon::fromTheme(QLatin1String("firefox"))); // TODO: what about other mozilla apps?
+    QApplication::setQuitOnLastWindowClosed( false );
+
+    QCommandLineParser parser;
+    about.setupCommandLine(&parser);
+
+    app.setQuitOnLastWindowClosed(false);
+
+    Helper helper;
+
     return app.exec();
     }
 
-App::App()
+Helper::Helper()
     : input( stdin )
     , output( stdout )
     , notifier( STDIN_FILENO, QSocketNotifier::Read )
     , arguments_read( false )
     {
     connect( &notifier, SIGNAL( activated( int )), SLOT( readCommand()));
-    setQuitOnLastWindowClosed( false );
     }
 
-void App::readCommand()
+void Helper::readCommand()
     {
     QString command = readLine();
     if( input.atEnd())
@@ -85,7 +88,7 @@ void App::readCommand()
 #ifdef DEBUG_KDE
         QTextStream( stderr ) << "EOF, existing." << endl;
 #endif
-        quit();
+        QCoreApplication::exit();
         return;
         }
 #ifdef DEBUG_KDE
@@ -146,7 +149,7 @@ void App::readCommand()
     outputLine( status ? "\\1" : "\\0", false ); // do not escape
     }
 
-bool App::handleCheck()
+bool Helper::handleCheck()
     {
     if( !readArguments( 1 ))
         return false;
@@ -159,11 +162,11 @@ bool App::handleCheck()
     return false;
     }
 
-bool App::handleGetProxy()
+bool Helper::handleGetProxy()
     {
     if( !readArguments( 1 ))
         return false;
-    KUrl url( getArgument());
+    QUrl url = QUrl::fromUserInput( getArgument());
     if( !allArgumentsUsed())
         return false;
     QString proxy;
@@ -173,7 +176,7 @@ bool App::handleGetProxy()
         outputLine( "DIRECT" );
         return true;
         }
-    KUrl proxyurl( proxy );
+    QUrl proxyurl = QUrl::fromUserInput( proxy );
     if( proxyurl.isValid())
         { // firefox wants this format
         outputLine( "PROXY" " " + proxyurl.host() + ":" + QString::number( proxyurl.port()));
@@ -183,7 +186,7 @@ bool App::handleGetProxy()
     return false;
     }
 
-bool App::handleHandlerExists()
+bool Helper::handleHandlerExists()
     {
     if( !readArguments( 1 ))
         return false;
@@ -193,7 +196,7 @@ bool App::handleHandlerExists()
     return KProtocolInfo::isKnownProtocol( protocol );
     }
 
-bool App::handleGetFromExtension()
+bool Helper::handleGetFromExtension()
     {
     if( !readArguments( 1 ))
         return false;
@@ -202,22 +205,23 @@ bool App::handleGetFromExtension()
         return false;
     if( !ext.isEmpty())
         {
-        KMimeType::Ptr mime = KMimeType::findByPath( "foo." + ext, 0, true ); // this is findByExtension(), basically
-        if( mime )
-            return writeMimeInfo( mime );
+        QList<QMimeType> mimeList = QMimeDatabase().mimeTypesForFileName("foo." + ext);
+        for (const QMimeType &mime : mimeList)
+            if (mime.isValid())
+                return writeMimeInfo( mime );
         }
     return false;
     }
 
-bool App::handleGetFromType()
+bool Helper::handleGetFromType()
     {
     if( !readArguments( 1 ))
         return false;
     QString type = getArgument();
     if( !allArgumentsUsed())
         return false;
-    KMimeType::Ptr mime = KMimeType::mimeType( type );
-    if( mime )
+    QMimeType mime = QMimeDatabase().mimeTypeForName(type);
+    if (mime.isValid())
         return writeMimeInfo( mime );
     // firefox also asks for protocol handlers using getfromtype
     QString app = getAppForProtocol( type );
@@ -231,20 +235,20 @@ bool App::handleGetFromType()
     return false;
     }
 
-bool App::writeMimeInfo( KMimeType::Ptr mime )
+bool Helper::writeMimeInfo( QMimeType mime )
     {
-    KService::Ptr service = KMimeTypeTrader::self()->preferredService( mime->name());
+    KService::Ptr service = KMimeTypeTrader::self()->preferredService( mime.name());
     if( service )
         {
-        outputLine( mime->name());
-        outputLine( mime->comment());
+        outputLine( mime.name());
+        outputLine( mime.comment());
         outputLine( service->name());
         return true;
         }
     return false;
     }
 
-bool App::handleGetAppDescForScheme()
+bool Helper::handleGetAppDescForScheme()
     {
     if( !readArguments( 1 ))
         return false;
@@ -260,7 +264,7 @@ bool App::handleGetAppDescForScheme()
     return false;
     }
 
-bool App::handleAppsDialog()
+bool Helper::handleAppsDialog()
     {
     if( !readArguments( 1 ))
         return false;
@@ -270,7 +274,7 @@ bool App::handleAppsDialog()
         return false;
     KOpenWithDialog dialog( NULL );
     if( !title.isEmpty())
-        dialog.setPlainCaption( title );
+        dialog.setWindowTitle( title );
     dialog.hideNoCloseOnExit();
     dialog.hideRunInTerminal(); // TODO
     if( wid != 0 )
@@ -286,144 +290,107 @@ bool App::handleAppsDialog()
         else
             return false;
         command = command.split( " " ).first(); // only the actual command
-        command = KStandardDirs::findExe( command );
+        command = QStandardPaths::findExecutable( command );
         if( command.isEmpty())
             return false;
-        outputLine( KUrl( command ).url());
+        outputLine( QUrl::fromUserInput( command ).url());
         return true;
         }
     return false;
     }
 
-bool App::handleGetOpenX( bool url )
+bool Helper::handleGetOpenX( bool url )
     {
     if( !readArguments( 4 ))
         return false;
     QString startDir = getArgument();
-    QString filter = getArgument().replace("/", "\\/");
+    QString filter = getArgument().replace("/", "\\/"); // TODO: not used
     int selectFilter = getArgument().toInt();
     QString title = getArgument();
     bool multiple = isArgument( "MULTIPLE" );
     long wid = getArgumentParent();
     if( !allArgumentsUsed())
         return false;
-    KFileDialog dialog( startDir, filter, NULL );
-    dialog.setOperationMode( KFileDialog::Opening );
-    dialog.setMode(( url ? KFile::Mode( 0 ) : KFile::LocalOnly )
-        | KFile::ExistingOnly
-        | ( multiple ? KFile::Files : KFile::File ));
-    if( title.isEmpty())
+
+    if ( title.isEmpty())
         title = i18n( "Open" );
-    dialog.setPlainCaption( title );
-    QStringList filterslist = dialog.filterWidget()->filters();
-    selectFilter = qBound( 0, selectFilter, filterslist.count() - 1 );
-    dialog.filterWidget()->setCurrentFilter( filterslist[ selectFilter ] );
-    if( wid != 0 )
-        KWindowSystem::setMainWindow( &dialog, wid );
-    dialog.exec();
-    if( url )
+
+    if ( url )
         {
-        QStringList result = multiple ? dialog.selectedFiles() : ( QStringList() << dialog.selectedFile());
-        result.removeAll(QString());
-        if( !result.isEmpty())
+        QList<QUrl> result;
+        if (multiple)
+            result = QFileDialog::getOpenFileUrls(nullptr, title, startDir);
+        else
+            result << QFileDialog::getOpenFileUrl(nullptr, title, startDir);
+        result.removeAll(QUrl());
+        if ( !result.isEmpty())
             {
-            outputLine( QString::number( dialog.filterWidget()->currentIndex()));
-            foreach( QString str, result )
-                outputLine( KUrl( str ).url());
+            outputLine(QStringLiteral("0")); // filter is not implemented, so always 0 (All Files)
+            for (const QUrl &url : result)
+                outputLine(url.url());
             return true;
             }
         }
     else
         {
-        KUrl::List result = multiple ? dialog.selectedUrls() : KUrl::List( dialog.selectedUrl());
-        result.removeAll(KUrl());
-        if( !result.isEmpty())
+        QStringList result;
+        if (multiple)
+            result = QFileDialog::getOpenFileNames(nullptr, title, startDir);
+        else
+            result << QFileDialog::getOpenFileName(nullptr, title, startDir);
+        result.removeAll(QString());
+        if ( !result.isEmpty())
             {
-            outputLine( QString::number( dialog.filterWidget()->currentIndex()));
-            foreach( const KUrl& str, result )
-              {
-              KUrl newUrl = KIO::NetAccess::mostLocalUrl(str, NULL);
-              outputLine( newUrl.toLocalFile() );
-              }
+            outputLine(QStringLiteral("0"));
+            for (const QString &str : result)
+                outputLine(str);
             return true;
             }
         }
     return false;
     }
 
-bool App::handleGetSaveX( bool url )
+bool Helper::handleGetSaveX( bool url )
     {
     if( !readArguments( 4 ))
         return false;
     QString startDir = getArgument();
-    QString filter = getArgument().replace("/", "\\/");
+    QString filter = getArgument().replace("/", "\\/"); // TODO: ignored
     int selectFilter = getArgument().toInt();
     QString title = getArgument();
     long wid = getArgumentParent();
     if( !allArgumentsUsed())
         return false;
-    KFileDialog dialog( QString(), filter, NULL );
-    dialog.setSelection( startDir );
-    dialog.setOperationMode( KFileDialog::Saving );
-    dialog.setMode( ( url ? KFile::Mode( 0 ) : KFile::LocalOnly ) | KFile::File );
-#if KDE_IS_VERSION( 4, 2, 0 )
-    dialog.setConfirmOverwrite( true );
-#endif
-    if( title.isEmpty())
+
+    if ( title.isEmpty())
         title = i18n( "Save As" );
-    dialog.setPlainCaption( title );
-    QStringList filterslist = dialog.filterWidget()->filters();
-    selectFilter = qBound( 0, selectFilter, filterslist.count() - 1 );
-    dialog.filterWidget()->setCurrentFilter( filterslist[ selectFilter ] );
-    if( wid != 0 )
-        KWindowSystem::setMainWindow( &dialog, wid );
-    dialog.exec();
-    if( url )
+
+    // TODO: confirm overwrite
+    if ( url )
         {
-        KUrl result = dialog.selectedUrl();
-        if( result.isValid())
+        QUrl result = QFileDialog::getSaveFileUrl(nullptr, title, startDir);
+        if ( result.isValid())
             {
-#if !KDE_IS_VERSION( 4, 2, 0 )
-            KIO::StatJob* job = KIO::stat( result, KIO::HideProgressInfo );
-            if( KIO::NetAccess::synchronousRun( job, NULL )
-                && KMessageBox::warningContinueCancelWId( wid,
-                    i18n( "A file named \"%1\" already exists. " "Are you sure you want to overwrite it?",
-                        result.fileName()), i18n( "Overwrite File?" ), KGuiItem( i18n( "Overwrite" )))
-                    == KMessageBox::Cancel )
-                {
-                return false;
-                }
-#endif
-            outputLine( QString::number( dialog.filterWidget()->currentIndex()));
-            outputLine( result.url());
+            outputLine(QStringLiteral("0"));
+            outputLine(result.url());
             return true;
             }
         }
     else
         {
-        QString result = dialog.selectedFile();
-        if( !result.isEmpty())
+        QString result = QFileDialog::getSaveFileName(nullptr, title, startDir);
+        if ( !result.isEmpty())
             {
-#if !KDE_IS_VERSION( 4, 2, 0 )
-            if( QFile::exists( result )
-                && KMessageBox::warningContinueCancelWId( wid,
-                    i18n( "A file named \"%1\" already exists. " "Are you sure you want to overwrite it?",
-                        result ), i18n( "Overwrite File?" ), KGuiItem( i18n( "Overwrite" )))
-                    == KMessageBox::Cancel )
-                {
-                return false;
-                }
-#endif
-            KRecentDocument::add( result );
-            outputLine( QString::number( dialog.filterWidget()->currentIndex()));
-            outputLine( result );
+            KRecentDocument::add(QUrl::fromLocalFile(result));
+            outputLine(QStringLiteral("0"));
+            outputLine(result);
             return true;
             }
         }
     return false;
     }
 
-bool App::handleGetDirectoryX( bool url )
+bool Helper::handleGetDirectoryX( bool url )
     {
     if( !readArguments( 2 ))
         return false;
@@ -432,33 +399,41 @@ bool App::handleGetDirectoryX( bool url )
     long wid = getArgumentParent();
     if( !allArgumentsUsed())
         return false;
-    KDirSelectDialog dialog( startDir, !url );
-    if( !title.isEmpty())
-        dialog.setPlainCaption( title );
-    if( wid != 0 )
-        KWindowSystem::setMainWindow( &dialog, wid );
-    if( dialog.exec() == QDialog::Accepted )
+
+    if ( url)
         {
-        outputLine( dialog.url().url());
-        return true;
+        QUrl result = QFileDialog::getExistingDirectoryUrl(nullptr, title, startDir);
+        if ( result.isValid())
+            {
+            outputLine(result.url());
+            return true;
+            }
+        }
+        else
+        {
+        QString result = QFileDialog::getExistingDirectory(nullptr, title, startDir);
+        if ( !result.isEmpty())
+            {
+            outputLine(QUrl::fromLocalFile(result).url());
+            return true;
+            }
         }
     return false;
     }
 
-bool App::handleOpen()
+bool Helper::handleOpen()
     {
     if( !readArguments( 1 ))
         return false;
-    KUrl url = getArgument();
+    QUrl url = QUrl::fromUserInput(getArgument());
     QString mime;
     if( isArgument( "MIMETYPE" ))
         mime = getArgument();
     if( !allArgumentsUsed())
         return false;
-    KApplication::updateUserTimestamp( 0 ); // TODO
     // try to handle the case when the server has broken mimetypes and e.g. claims something is application/octet-stream
-    KMimeType::Ptr mimeType = KMimeType::mimeType( mime );
-    if( !mime.isEmpty() && mimeType && KMimeTypeTrader::self()->preferredService( mimeType->name()))
+    QMimeType mimeType = QMimeDatabase().mimeTypeForName(mime);
+    if ( !mime.isEmpty() && mimeType.isValid() && KMimeTypeTrader::self()->preferredService(mimeType.name()))
         {
         return KRun::runUrl( url, mime, NULL ); // TODO parent
         }
@@ -471,21 +446,20 @@ bool App::handleOpen()
         }
     }
 
-bool App::handleReveal()
+bool Helper::handleReveal()
     {
     if( !readArguments( 1 ))
         return false;
     QString path = getArgument();
     if( !allArgumentsUsed())
         return false;
-    KApplication::updateUserTimestamp( 0 ); // TODO
     const KService::List apps = KMimeTypeTrader::self()->query("inode/directory", "Application");
     if (apps.size() != 0)
         {
         QString command = apps.at(0)->exec().split( " " ).first(); // only the actual command
         if (command == "dolphin" || command == "konqueror")
             {
-            command = KStandardDirs::findExe( command );
+            command = QStandardPaths::findExecutable(command);
             if( command.isEmpty())
                 return false;
             return KProcess::startDetached(command, QStringList() << "--select" << path);
@@ -493,11 +467,11 @@ bool App::handleReveal()
         }
     QFileInfo info(path);
     QString dir = info.dir().path();
-    (void) new KRun( KUrl(dir), NULL ); // TODO parent
+    (void) new KRun( QUrl::fromLocalFile(dir), NULL ); // TODO parent
     return true; // TODO check for errors?
     }
 
-bool App::handleRun()
+bool Helper::handleRun()
     {
     if( !readArguments( 2 ))
         return false;
@@ -505,16 +479,15 @@ bool App::handleRun()
     QString arg = getArgument();
     if( !allArgumentsUsed())
         return false;
-    KApplication::updateUserTimestamp( 0 ); // TODO
     return KRun::runCommand( KShell::quoteArg( app ) + " " + KShell::quoteArg( arg ), NULL ); // TODO parent, ASN
     }
 
-bool App::handleGetDefaultFeedReader()
+bool Helper::handleGetDefaultFeedReader()
     {
     if( !readArguments( 0 ))
         return false;
     // firefox wants the full path
-    QString reader = KStandardDirs::findExe( "akregator" ); // TODO there is no KDE setting for this
+    QString reader = QStandardPaths::findExecutable("akregator"); // TODO there is no KDE setting for this
     if( !reader.isEmpty())
         {
         outputLine( reader );
@@ -523,7 +496,7 @@ bool App::handleGetDefaultFeedReader()
     return false;
     }
 
-bool App::handleOpenMail()
+bool Helper::handleOpenMail()
     {
     if( !readArguments( 0 ))
         return false;
@@ -536,32 +509,31 @@ bool App::handleOpenMail()
         command = "kmail";
     if( group.readEntry( "TerminalClient", false ))
         {
-        QString terminal = KConfigGroup( KGlobal::config(), "General" ).readPathEntry( "TerminalApplication", "konsole" );
+        QString terminal = KConfigGroup( KSharedConfig::openConfig(), "General" ).readPathEntry( "TerminalApplication", "konsole" );
         command = terminal + " -e " + command;
         }
     KService::Ptr mail = KService::serviceByDesktopName( command.split( " " ).first());
     if( mail )
         {
-        KApplication::updateUserTimestamp( 0 ); // TODO
-        return KRun::run( *mail, KUrl::List(), NULL ); // TODO parent
+        return KRun::runService( *mail, QList<QUrl>(), NULL ); // TODO parent
         }
     return false;
     }
 
-bool App::handleOpenNews()
+bool Helper::handleOpenNews()
     {
     if( !readArguments( 0 ))
         return false;
     KService::Ptr news = KService::serviceByDesktopName( "knode" ); // TODO there is no KDE setting for this
     if( news )
         {
-        KApplication::updateUserTimestamp( 0 ); // TODO
-        return KRun::run( *news, KUrl::List(), NULL ); // TODO parent
+        //KApplication::updateUserTimestamp( 0 ); // TODO
+        return KRun::runService( *news, QList<QUrl>(), NULL ); // TODO parent
         }
     return false;
     }
 
-bool App::handleIsDefaultBrowser()
+bool Helper::handleIsDefaultBrowser()
     {
     if( !readArguments( 0 ))
         return false;
@@ -572,7 +544,7 @@ bool App::handleIsDefaultBrowser()
         || browser == "firefox" || browser == "firefox.desktop";
     }
 
-bool App::handleSetDefaultBrowser()
+bool Helper::handleSetDefaultBrowser()
     {
     if( !readArguments( 1 ))
         return false;
@@ -588,7 +560,7 @@ bool App::handleSetDefaultBrowser()
     return true;
     }
 
-bool App::handleDownloadFinished()
+bool Helper::handleDownloadFinished()
     {
     if( !readArguments( 1 ))
         return false;
@@ -598,7 +570,7 @@ bool App::handleDownloadFinished()
     // TODO cheat a bit due to i18n freeze - the strings are in the .notifyrc file,
     // taken from KGet, but the notification itself needs the text too.
     // So create it from there.
-    KConfig cfg( "kmozillahelper.notifyrc", KConfig::FullConfig, "appdata" );
+    KConfig cfg( "kmozillahelper.notifyrc", KConfig::FullConfig, QStandardPaths::AppDataLocation );
     QString message = KConfigGroup( &cfg, "Event/downloadfinished" ).readEntry( "Comment" );
     KNotification::event( "downloadfinished", download + " : " + message );
     return true;
@@ -607,7 +579,7 @@ bool App::handleDownloadFinished()
 #if 0
 static bool open_error = false;
 
-void App::openDone()
+void Helper::openDone()
     {
     // like kde-open - wait 2 second to give error dialogs time to show up
     QTimer::singleShot( 2000, this, SLOT( quit()));
@@ -616,7 +588,7 @@ void App::openDone()
     }
 #endif
 
-QString App::getAppForProtocol( const QString& protocol )
+QString Helper::getAppForProtocol( const QString& protocol )
     {
     if( KProtocolInfo::isHelperProtocol( protocol ))
         {
@@ -650,7 +622,7 @@ QString App::getAppForProtocol( const QString& protocol )
     return QString();
     }
 
-QString App::readLine()
+QString Helper::readLine()
     {
     QString line = input.readLine();
     line.replace( "\\n", "\n" );
@@ -658,7 +630,7 @@ QString App::readLine()
     return line;
     }
 
-void App::outputLine( QString line, bool escape )
+void Helper::outputLine( QString line, bool escape )
     {
     if( escape )
         {
@@ -671,7 +643,7 @@ void App::outputLine( QString line, bool escape )
 #endif
     }
 
-bool App::readArguments( int mincount )
+bool Helper::readArguments( int mincount )
     {
     assert( arguments.isEmpty());
     for(;;)
@@ -694,13 +666,13 @@ bool App::readArguments( int mincount )
         }
     }
 
-QString App::getArgument()
+QString Helper::getArgument()
     {
     assert( !arguments.isEmpty());
     return arguments.takeFirst();
     }
 
-bool App::isArgument( const QString& argument )
+bool Helper::isArgument( const QString& argument )
     {
     if( !arguments.isEmpty() && arguments.first() == argument )
         {
@@ -710,7 +682,7 @@ bool App::isArgument( const QString& argument )
     return false;
     }
 
-bool App::allArgumentsUsed()
+bool Helper::allArgumentsUsed()
     {
     assert( arguments_read );
     arguments_read = false;
@@ -721,7 +693,7 @@ bool App::allArgumentsUsed()
     return false;
     }
 
-long App::getArgumentParent()
+long Helper::getArgumentParent()
     {
     if( isArgument( "PARENT" ))
         return getArgument().toLong();
