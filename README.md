@@ -1,0 +1,2 @@
+# kmozillahelper
+KDE mozilla integration
