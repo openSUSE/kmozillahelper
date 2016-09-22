@@ -58,7 +58,6 @@ int main( int argc, char* argv[] )
     KAboutData about( "kmozillahelper", i18n( "KMozillaHelper" ), APP_HELPER_VERSION );
     about.setBugAddress( "https://bugzilla.opensuse.org/enter_bug.cgi");
     KAboutData::setApplicationData(about);
-    QApplication::setWindowIcon(QIcon::fromTheme(QLatin1String("firefox"))); // TODO: what about other mozilla apps?
     QApplication::setQuitOnLastWindowClosed( false );
 
     QCommandLineParser parser;
