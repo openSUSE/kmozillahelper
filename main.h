@@ -65,7 +65,6 @@ class Helper
         QString readLine();
     private slots:
         void readCommand();
-//        void openDone();
     private:
         QTextStream input;
         QTextStream output;
