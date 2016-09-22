@@ -10,6 +10,7 @@ set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH} ${ECM_KDE_MODULE_DIR})
 
 include(KDEInstallDirs)
 include(KDECMakeSettings)
+include(KDECompilerSettings)
 include(FeatureSummary)
 
 find_package(KF5 REQUIRED COMPONENTS Notifications KIO WindowSystem I18n)
