@@ -576,18 +576,6 @@ bool Helper::handleDownloadFinished()
     return true;
     }
 
-#if 0
-static bool open_error = false;
-
-void Helper::openDone()
-    {
-    // like kde-open - wait 2 second to give error dialogs time to show up
-    QTimer::singleShot( 2000, this, SLOT( quit()));
-    if( static_cast< KRun* >( sender())->hasError())
-        open_error = true;
-    }
-#endif
-
 QString Helper::getAppForProtocol( const QString& protocol )
     {
     if( KProtocolInfo::isHelperProtocol( protocol ))
@@ -699,5 +687,3 @@ long Helper::getArgumentParent()
         return getArgument().toLong();
     return 0;
     }
-
-#include "main.h"
