@@ -55,7 +55,8 @@ int main( int argc, char* argv[] )
     {
     QApplication app(argc, argv);
 
-    KAboutData about( "kmozillahelper", i18n( "KMozillaHelper" ), APP_HELPER_VERSION );
+    // This shows on file dialogs
+    KAboutData about( "kmozillahelper", i18n( "Mozilla Firefox" ), APP_HELPER_VERSION );
     about.setBugAddress( "https://bugzilla.opensuse.org/enter_bug.cgi");
     KAboutData::setApplicationData(about);
     QApplication::setQuitOnLastWindowClosed( false );
@@ -109,13 +110,13 @@ void Helper::readCommand()
     else if( command == "APPSDIALOG" )
         status = handleAppsDialog();
     else if( command == "GETOPENFILENAME" )
-        status = handleGetOpenX( false );
+        status = handleGetOpenOrSaveX( false, false );
     else if( command == "GETOPENURL" )
-        status = handleGetOpenX( true );
+        status = handleGetOpenOrSaveX( true, false );
     else if( command == "GETSAVEFILENAME" )
-        status = handleGetSaveX( false );
+        status = handleGetOpenOrSaveX( false, true );
     else if( command == "GETSAVEURL" )
-        status = handleGetSaveX( true );
+        status = handleGetOpenOrSaveX( true, true );
     else if( command == "GETDIRECTORYFILENAME" )
         status = handleGetDirectoryX( false );
     else if( command == "GETDIRECTORYURL" )
@@ -298,15 +299,33 @@ bool Helper::handleAppsDialog()
     return false;
     }
 
-bool Helper::handleGetOpenX( bool url )
+QStringList Helper::convertToNameFilters( const QString &input )
+{
+    QStringList ret;
+
+    // Filters separated by newline
+    for (auto &filter : input.split('\n'))
+    {
+        // Filer exp and name separated by '|'.
+        // TODO: Is it possible that | appears in either of those?
+        auto data = filter.split('|');
+
+        ret.append(QStringLiteral("%0 (%1)(%1)").arg(data[1]).arg(data[0]));
+    }
+
+    return ret;
+}
+
+bool Helper::handleGetOpenOrSaveX( bool url, bool save )
     {
     if( !readArguments( 4 ))
         return false;
     QString startDir = getArgument();
-    QString filter = getArgument().replace("/", "\\/"); // TODO: not used
+    // Use dialog.nameFilters() instead of filtersParsed as setNameFilters does some syntax changes
+    QStringList filtersParsed = convertToNameFilters(getArgument());
     int selectFilter = getArgument().toInt();
     QString title = getArgument();
-    bool multiple = isArgument( "MULTIPLE" );
+    bool multiple = save ? false : isArgument( "MULTIPLE" );
     long wid = getArgumentParent();
     if( !allArgumentsUsed())
         return false;
@@ -314,17 +333,38 @@ bool Helper::handleGetOpenX( bool url )
     if ( title.isEmpty())
         title = i18n( "Open" );
 
+    QFileDialog dialog;
+
+    dialog.setWindowTitle(title);
+    dialog.setNameFilters(filtersParsed);
+    dialog.setOption(QFileDialog::DontConfirmOverwrite, false);
+    dialog.setAcceptMode(save ? QFileDialog::AcceptSave : QFileDialog::AcceptOpen);
+
+    if(save)
+        dialog.setFileMode((QFileDialog::AnyFile));
+    else
+        dialog.setFileMode(multiple ? QFileDialog::ExistingFiles : QFileDialog::ExistingFile);
+
+    if (selectFilter >= 0 && selectFilter >= dialog.nameFilters().size())
+        dialog.selectNameFilter(dialog.nameFilters().at(selectFilter));
+
+    // If url == false only allow local files
+    if (url == false)
+        dialog.setSupportedSchemes(QStringList(QStringLiteral("file")));
+
+    // Run dialog
+    if(dialog.exec() != QDialog::Accepted)
+        return false;
+
+    int usedFilter = dialog.nameFilters().indexOf(dialog.selectedNameFilter());
+
     if ( url )
         {
-        QList<QUrl> result;
-        if (multiple)
-            result = QFileDialog::getOpenFileUrls(nullptr, title, startDir);
-        else
-            result << QFileDialog::getOpenFileUrl(nullptr, title, startDir);
+        QList<QUrl> result = dialog.selectedUrls();
         result.removeAll(QUrl());
         if ( !result.isEmpty())
             {
-            outputLine(QStringLiteral("0")); // filter is not implemented, so always 0 (All Files)
+            outputLine(QStringLiteral("%0").arg(usedFilter));
             for (const QUrl &url : result)
                 outputLine(url.url());
             return true;
@@ -332,57 +372,13 @@ bool Helper::handleGetOpenX( bool url )
         }
     else
         {
-        QStringList result;
-        if (multiple)
-            result = QFileDialog::getOpenFileNames(nullptr, title, startDir);
-        else
-            result << QFileDialog::getOpenFileName(nullptr, title, startDir);
+        QStringList result = dialog.selectedFiles();
         result.removeAll(QString());
         if ( !result.isEmpty())
             {
-            outputLine(QStringLiteral("0"));
+            outputLine(QStringLiteral("%0").arg(usedFilter));
             for (const QString &str : result)
                 outputLine(str);
-            return true;
-            }
-        }
-    return false;
-    }
-
-bool Helper::handleGetSaveX( bool url )
-    {
-    if( !readArguments( 4 ))
-        return false;
-    QString startDir = getArgument();
-    QString filter = getArgument().replace("/", "\\/"); // TODO: ignored
-    int selectFilter = getArgument().toInt();
-    QString title = getArgument();
-    long wid = getArgumentParent();
-    if( !allArgumentsUsed())
-        return false;
-
-    if ( title.isEmpty())
-        title = i18n( "Save As" );
-
-    // TODO: confirm overwrite
-    if ( url )
-        {
-        QUrl result = QFileDialog::getSaveFileUrl(nullptr, title, startDir);
-        if ( result.isValid())
-            {
-            outputLine(QStringLiteral("0"));
-            outputLine(result.url());
-            return true;
-            }
-        }
-    else
-        {
-        QString result = QFileDialog::getSaveFileName(nullptr, title, startDir);
-        if ( !result.isEmpty())
-            {
-            KRecentDocument::add(QUrl::fromLocalFile(result));
-            outputLine(QStringLiteral("0"));
-            outputLine(result);
             return true;
             }
         }

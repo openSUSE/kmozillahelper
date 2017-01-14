@@ -42,8 +42,7 @@ class Helper
         bool handleGetFromType();
         bool handleGetAppDescForScheme();
         bool handleAppsDialog();
-        bool handleGetOpenX( bool url );
-        bool handleGetSaveX( bool url );
+        bool handleGetOpenOrSaveX( bool url, bool save );
         bool handleGetDirectoryX( bool url );
         bool handleOpen();
         bool handleReveal();
@@ -54,6 +53,7 @@ class Helper
         bool handleIsDefaultBrowser();
         bool handleSetDefaultBrowser();
         bool handleDownloadFinished();
+        QStringList convertToNameFilters( const QString &input );
         bool writeMimeInfo( QMimeType mime );
         QString getAppForProtocol( const QString& protocol );
         bool readArguments( int mincount );
