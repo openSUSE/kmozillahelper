@@ -86,7 +86,7 @@ void Helper::readCommand()
     if( input.atEnd())
         {
 #ifdef DEBUG_KDE
-        QTextStream( stderr ) << "EOF, existing." << endl;
+        QTextStream( stderr ) << "EOF, exiting." << endl;
 #endif
         QCoreApplication::exit();
         return;
