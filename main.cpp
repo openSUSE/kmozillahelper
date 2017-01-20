@@ -348,9 +348,11 @@ bool Helper::handleGetOpenOrSaveX( bool url, bool save )
     if (selectFilter >= 0 && selectFilter >= dialog.nameFilters().size())
         dialog.selectNameFilter(dialog.nameFilters().at(selectFilter));
 
-    // If url == false only allow local files
+    // If url == false only allow local files. Impossible to do with Qt < 5.6...
+    #if (QT_VERSION >= QT_VERSION_CHECK(5, 6, 0))
     if (url == false)
         dialog.setSupportedSchemes(QStringList(QStringLiteral("file")));
+    #endif
 
     // Run dialog
     if(dialog.exec() != QDialog::Accepted)
