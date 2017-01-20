@@ -320,7 +320,7 @@ bool Helper::handleGetOpenOrSaveX( bool url, bool save )
     {
     if( !readArguments( 4 ))
         return false;
-    QString startDir = getArgument();
+    QUrl defaultPath = QUrl::fromLocalFile(getArgument());
     // Use dialog.nameFilters() instead of filtersParsed as setNameFilters does some syntax changes
     QStringList filtersParsed = convertToNameFilters(getArgument());
     int selectFilter = getArgument().toInt();
@@ -335,6 +335,8 @@ bool Helper::handleGetOpenOrSaveX( bool url, bool save )
 
     QFileDialog dialog;
 
+    dialog.setDirectoryUrl(defaultPath.path());
+    dialog.selectFile(defaultPath.fileName());
     dialog.setWindowTitle(title);
     dialog.setNameFilters(filtersParsed);
     dialog.setOption(QFileDialog::DontConfirmOverwrite, false);
