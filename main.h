@@ -28,6 +28,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <QtCore/QSocketNotifier>
 #include <QtCore/QTextStream>
 
+class QWindow;
+
 class Helper
     : public QObject
     {
@@ -35,6 +37,7 @@ class Helper
     public:
         Helper();
     private:
+        void makeKDEDialogsTransient(QWindow *win);
         bool handleCheck();
         bool handleGetProxy();
         bool handleHandlerExists();

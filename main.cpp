@@ -1,6 +1,7 @@
 /*****************************************************************
 
 Copyright (C) 2009 Lubos Lunak <l.lunak@suse.cz>
+Copyright (C) 2017 Fabian Vogt <fabian@ritter-vogt.de>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +32,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <QtGui/QIcon>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QFileDialog>
+#include <QWindow>
 
 #include <KConfigCore/KConfigGroup>
 #include <KConfigCore/KSharedConfig>
@@ -148,6 +150,24 @@ void Helper::readCommand()
     // in normal data (\ is escaped otherwise)
     outputLine( status ? "\\1" : "\\0", false ); // do not escape
     }
+
+/* Qt just uses the QWidget* parent as transient parent for native
+ * platform dialogs. This makes it impossible to make them transient
+ * to a bare QWindow*. As (at least) the KDE platformtheme does not
+ * parent the native dialog to the built-in one, we need to iterate
+ * the whole hierarchy and setTransientParent them manually... */
+void Helper::makeKDEDialogsTransient(QWindow *win)
+{
+    for(QWidget *w : QApplication::allWidgets())
+    {
+        if(strcmp(w->metaObject()->className(), "KDEPlatformFileDialog")
+            && strcmp(w->metaObject()->className(), "KDirSelectDialog"))
+                continue;
+
+        w->winId();
+        w->windowHandle()->setTransientParent(win);
+    }
+}
 
 bool Helper::handleCheck()
     {
@@ -356,9 +376,18 @@ bool Helper::handleGetOpenOrSaveX( bool url, bool save )
         dialog.setSupportedSchemes(QStringList(QStringLiteral("file")));
     #endif
 
+    // Call show() here to force the creation of the native dialog so we can
+    // setTransientParent on it.
+    dialog.show();
+
+    QWindow *parentWin = QWindow::fromWinId(wid);
+    makeKDEDialogsTransient(parentWin);
+
     // Run dialog
     if(dialog.exec() != QDialog::Accepted)
         return false;
+
+    delete parentWin;
 
     int usedFilter = dialog.nameFilters().indexOf(dialog.selectedNameFilter());
 
