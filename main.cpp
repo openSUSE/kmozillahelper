@@ -70,6 +70,8 @@ int main( int argc, char* argv[] )
 
     Helper helper;
 
+    app.installEventFilter(&helper);
+
     return app.exec();
     }
 
@@ -150,24 +152,6 @@ void Helper::readCommand()
     // in normal data (\ is escaped otherwise)
     outputLine( status ? "\\1" : "\\0", false ); // do not escape
     }
-
-/* Qt just uses the QWidget* parent as transient parent for native
- * platform dialogs. This makes it impossible to make them transient
- * to a bare QWindow*. As (at least) the KDE platformtheme does not
- * parent the native dialog to the built-in one, we need to iterate
- * the whole hierarchy and setTransientParent them manually... */
-void Helper::makeKDEDialogsTransient(QWindow *win)
-{
-    for(QWidget *w : QApplication::allWidgets())
-    {
-        if(strcmp(w->metaObject()->className(), "KDEPlatformFileDialog")
-            && strcmp(w->metaObject()->className(), "KDirSelectDialog"))
-                continue;
-
-        w->winId();
-        w->windowHandle()->setTransientParent(win);
-    }
-}
 
 bool Helper::handleCheck()
     {
@@ -346,7 +330,7 @@ bool Helper::handleGetOpenOrSaveX( bool url, bool save )
     int selectFilter = getArgument().toInt();
     QString title = getArgument();
     bool multiple = save ? false : isArgument( "MULTIPLE" );
-    long wid = getArgumentParent();
+    this->wid = getArgumentParent();
     if( !allArgumentsUsed())
         return false;
 
@@ -376,18 +360,9 @@ bool Helper::handleGetOpenOrSaveX( bool url, bool save )
         dialog.setSupportedSchemes(QStringList(QStringLiteral("file")));
     #endif
 
-    // Call show() here to force the creation of the native dialog so we can
-    // setTransientParent on it.
-    dialog.show();
-
-    QWindow *parentWin = QWindow::fromWinId(wid);
-    makeKDEDialogsTransient(parentWin);
-
     // Run dialog
     if(dialog.exec() != QDialog::Accepted)
         return false;
-
-    delete parentWin;
 
     int usedFilter = dialog.nameFilters().indexOf(dialog.selectedNameFilter());
 
@@ -424,7 +399,7 @@ bool Helper::handleGetDirectoryX( bool url )
         return false;
     QString startDir = getArgument();
     QString title = getArgument();
-    long wid = getArgumentParent();
+    this->wid = getArgumentParent();
     if( !allArgumentsUsed())
         return false;
 
@@ -644,7 +619,24 @@ QString Helper::readLine()
     line.replace( "\\n", "\n" );
     line.replace( "\\" "\\", "\\" );
     return line;
+}
+
+/* Qt just uses the QWidget* parent as transient parent for native
+ * platform dialogs. This makes it impossible to make them transient
+ * to a bare QWindow*. So we catch the show event for the QDialog
+ * and setTransientParent here instead. */
+bool Helper::eventFilter(QObject *obj, QEvent *ev)
+{
+    if(ev->type() == QEvent::Show && obj->inherits("QDialog"))
+    {
+        QWidget *widget = static_cast<QWidget*>(obj);
+        widget->winId();
+        if(wid)
+            KWindowSystem::setMainWindow(widget, wid);
     }
+
+    return false;
+}
 
 void Helper::outputLine( QString line, bool escape )
     {

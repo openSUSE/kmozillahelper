@@ -66,6 +66,8 @@ class Helper
         long getArgumentParent();
         void outputLine( QString line, bool escape = true );
         QString readLine();
+    protected:
+        virtual bool eventFilter(QObject *obj, QEvent *ev) override;
     private slots:
         void readCommand();
     private:
@@ -74,6 +76,7 @@ class Helper
         QSocketNotifier notifier;
         QStringList arguments;
         bool arguments_read;
+        long wid;
     };
 
 #endif
