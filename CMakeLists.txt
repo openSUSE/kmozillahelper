@@ -13,7 +13,9 @@ include(KDECMakeSettings)
 include(KDECompilerSettings)
 include(FeatureSummary)
 
-find_package(KF5 REQUIRED COMPONENTS Notifications KIO WindowSystem I18n)
+find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets)
+
+find_package(KF5 REQUIRED COMPONENTS Config CoreAddons I18n KIO Notifications Service WindowSystem)
 
 add_executable(kmozillahelper main.cpp)
 
