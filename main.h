@@ -28,55 +28,51 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <QtCore/QSocketNotifier>
 #include <QtCore/QTextStream>
 
-class QWindow;
-
-class Helper
-    : public QObject
-    {
+class Helper : public QObject
+{
     Q_OBJECT
-    public:
-        Helper();
-    private:
-        void makeKDEDialogsTransient(QWindow *win);
-        bool handleCheck();
-        bool handleGetProxy();
-        bool handleHandlerExists();
-        bool handleGetFromExtension();
-        bool handleGetFromType();
-        bool handleGetAppDescForScheme();
-        bool handleAppsDialog();
-        bool handleGetOpenOrSaveX( bool url, bool save );
-        bool handleGetDirectoryX( bool url );
-        bool handleOpen();
-        bool handleReveal();
-        bool handleRun();
-        bool handleGetDefaultFeedReader();
-        bool handleOpenMail();
-        bool handleOpenNews();
-        bool handleIsDefaultBrowser();
-        bool handleSetDefaultBrowser();
-        bool handleDownloadFinished();
-        QStringList convertToNameFilters( const QString &input );
-        bool writeMimeInfo( QMimeType mime );
-        QString getAppForProtocol( const QString& protocol );
-        bool readArguments( int mincount );
-        QString getArgument();
-        bool isArgument( const QString& name ); // also discards the line with it
-        bool allArgumentsUsed();
-        long getArgumentParent();
-        void outputLine( QString line, bool escape = true );
-        QString readLine();
-    protected:
-        virtual bool eventFilter(QObject *obj, QEvent *ev) override;
-    private slots:
-        void readCommand();
-    private:
-        QTextStream input;
-        QTextStream output;
-        QSocketNotifier notifier;
-        QStringList arguments;
-        bool arguments_read;
-        long wid;
-    };
+public:
+    Helper();
+private:
+    bool handleCheck();
+    bool handleGetProxy();
+    bool handleHandlerExists();
+    bool handleGetFromExtension();
+    bool handleGetFromType();
+    bool handleGetAppDescForScheme();
+    bool handleAppsDialog();
+    bool handleGetOpenOrSaveX(bool url, bool save);
+    bool handleGetDirectoryX(bool url);
+    bool handleOpen();
+    bool handleReveal();
+    bool handleRun();
+    bool handleGetDefaultFeedReader();
+    bool handleOpenMail();
+    bool handleOpenNews();
+    bool handleIsDefaultBrowser();
+    bool handleSetDefaultBrowser();
+    bool handleDownloadFinished();
+    QStringList convertToNameFilters(const QString &input);
+    bool writeMimeInfo(QMimeType mime);
+    QString getAppForProtocol(const QString& protocol);
+    bool readArguments(int mincount);
+    QString getArgument();
+    bool isArgument(const QString& name); // also discards the line with it
+    bool allArgumentsUsed();
+    long getArgumentParent();
+    void outputLine(QString line, bool escape = true);
+    QString readLine();
+protected:
+    virtual bool eventFilter(QObject *obj, QEvent *ev) override;
+private slots:
+    void readCommand();
+private:
+    QTextStream input;
+    QTextStream output;
+    QSocketNotifier notifier;
+    QStringList arguments;
+    bool arguments_read;
+    long wid;
+};
 
 #endif
