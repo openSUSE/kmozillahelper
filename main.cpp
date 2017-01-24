@@ -417,7 +417,7 @@ bool Helper::handleGetDirectoryX( bool url )
         QString result = QFileDialog::getExistingDirectory(nullptr, title, startDir);
         if ( !result.isEmpty())
             {
-            outputLine(QUrl::fromLocalFile(result).url());
+            outputLine(result);
             return true;
             }
         }
