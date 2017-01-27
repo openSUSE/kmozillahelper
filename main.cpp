@@ -95,6 +95,11 @@ void Helper::readCommand()
         QCoreApplication::exit();
         return;
     }
+
+    // For now we only allow one command at once.
+    // We need to do this as dialogs spawn their own eventloop and thus they get nested...
+    notifier.blockSignals(true);
+
 #ifdef DEBUG_KDE
     QTextStream(stderr) << "COMMAND:" << command << endl;
 #endif
@@ -151,6 +156,8 @@ void Helper::readCommand()
     // status done as \1 (==ok) and \0 (==not ok), because otherwise this cannot happen
     // in normal data (\ is escaped otherwise)
     outputLine(status ? "\\1" : "\\0", false); // do not escape
+
+    notifier.blockSignals(false);
 }
 
 bool Helper::handleCheck()
