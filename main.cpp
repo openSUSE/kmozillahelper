@@ -204,7 +204,10 @@ bool Helper::handleHandlerExists()
     QString protocol = getArgument();
     if(!allArgumentsUsed())
         return false;
-    return KProtocolInfo::isKnownProtocol(protocol);
+    if(KProtocolInfo::isHelperProtocol(protocol))
+        return true;
+
+    return KMimeTypeTrader::self()->preferredService(QLatin1String("x-scheme-handler/") + protocol) != nullptr;
 }
 
 bool Helper::handleGetFromExtension()
@@ -588,36 +591,49 @@ bool Helper::handleDownloadFinished()
 
 QString Helper::getAppForProtocol(const QString& protocol)
 {
-    if(KProtocolInfo::isHelperProtocol(protocol))
+    /* Inspired by kio's krun.cpp */
+    const KService::Ptr service = KMimeTypeTrader::self()->preferredService(QLatin1String("x-scheme-handler/") + protocol);
+    if (service)
+        return service->name();
+
+    /* Some KDE services (e.g. vnc) also support application associations.
+     * Those are known as "Helper Protocols".
+     * However, those aren't also registered using fake mime types and there
+     * is no link to a .desktop file...
+     * So we need to query for the service to use and then find the .desktop
+     * file for that application by comparing the Exec values. */
+
+    if(!KProtocolInfo::isHelperProtocol(protocol))
+        return {};
+
+    QString exec = KProtocolInfo::exec(protocol);
+
+    if(exec.isEmpty())
+        return {};
+
+    if(exec.contains(' '))
+        exec = exec.split(' ').first(); // first part of command
+
+    if(KService::Ptr service = KService::serviceByDesktopName(exec))
+        return service->name();
+
+    QString servicename;
+    foreach(KService::Ptr service, KService::allServices())
     {
-        QString exec = KProtocolInfo::exec(protocol);
-        if(!exec.isEmpty())
+        QString exec2 = service->exec();
+        if(exec2.contains(' '))
+            exec2 = exec2.split(' ').first(); // first part of command
+        if(exec == exec2)
         {
-            if(exec.contains(' '))
-                exec = exec.split(' ').first(); // first part of command
-            QString servicename;
-            if(KService::Ptr service = KService::serviceByDesktopName(exec))
-                servicename = service->name();
-            else
-            {
-                foreach(KService::Ptr service, KService::allServices())
-                {
-                    QString exec2 = service->exec();
-                    if(exec2.contains(' '))
-                        exec2 = exec2.split(' ').first(); // first part of command
-                    if(exec == exec2)
-                    {
-                        servicename = service->name();
-                        break;
-                    }
-                }
-                if(servicename.isEmpty() && exec == "kmailservice") // kmailto is handled internally by kmailservice
-                    servicename = i18n("KDE");
-            }
-            return servicename;
+            servicename = service->name();
+            break;
         }
     }
-    return QString();
+
+    if(servicename.isEmpty() && exec == "kmailservice") // kmailto is handled internally by kmailservice
+        servicename = i18n("KDE");
+
+    return servicename;
 }
 
 QString Helper::readLine()
