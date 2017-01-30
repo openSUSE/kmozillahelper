@@ -27,6 +27,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <cassert>
 #include <unistd.h>
 
+#include <iostream>
+
 #include <QtCore/QCommandLineParser>
 #include <QtCore/QMimeDatabase>
 #include <QtGui/QIcon>
@@ -76,9 +78,7 @@ int main(int argc, char* argv[])
 }
 
 Helper::Helper()
-    : input(stdin)
-    , output(stdout)
-    , notifier(STDIN_FILENO, QSocketNotifier::Read)
+    : notifier(STDIN_FILENO, QSocketNotifier::Read)
     , arguments_read(false)
 {
     connect(&notifier, SIGNAL(activated(int)), SLOT(readCommand()));
@@ -87,10 +87,10 @@ Helper::Helper()
 void Helper::readCommand()
 {
     QString command = readLine();
-    if(input.atEnd())
+    if(!std::cin.good())
     {
 #ifdef DEBUG_KDE
-        QTextStream(stderr) << "EOF, exiting." << endl;
+        std::cerr << "EOF, exiting." << std::endl;
 #endif
         QCoreApplication::exit();
         return;
@@ -101,7 +101,7 @@ void Helper::readCommand()
     notifier.blockSignals(true);
 
 #ifdef DEBUG_KDE
-    QTextStream(stderr) << "COMMAND:" << command << endl;
+    std::cerr << "COMMAND: " << command.toStdString() << std::endl;
 #endif
     bool status;
     if(command == "CHECK")
@@ -150,7 +150,7 @@ void Helper::readCommand()
         status = handleDownloadFinished();
     else
     {
-        QTextStream(stderr) << "Unknown command for KDE helper: " << command << endl;
+        std::cerr << "Unknown command for KDE helper: " << command.toStdString() << std::endl;
         status = false;
     }
     // status done as \1 (==ok) and \0 (==not ok), because otherwise this cannot happen
@@ -169,7 +169,7 @@ bool Helper::handleCheck()
         return false;
     if(version <= HELPER_VERSION) // we must have the exact requested version
         return true;
-    QTextStream(stderr) << "KDE helper version too old." << endl;
+    std::cerr << "KDE helper version too old." << std::endl;
     return false;
 }
 
@@ -638,10 +638,14 @@ QString Helper::getAppForProtocol(const QString& protocol)
 
 QString Helper::readLine()
 {
-    QString line = input.readLine();
-    line.replace("\\n", "\n");
-    line.replace("\\" "\\", "\\");
-    return line;
+    std::string line;
+    if(!std::getline(std::cin, line))
+        return {};
+
+    QString qline = QString::fromStdString(line);
+    qline.replace("\\n", "\n");
+    qline.replace("\\" "\\", "\\");
+    return qline;
 }
 
 /* Qt just uses the QWidget* parent as transient parent for native
@@ -668,9 +672,9 @@ void Helper::outputLine(QString line, bool escape)
         line.replace("\\",  "\\" "\\");
         line.replace("\n", "\\n");
     }
-    output << line << endl;
+    std::cout << line.toStdString() << std::endl;
 #ifdef DEBUG_KDE
-    QTextStream(stderr) << "OUTPUT: " << line << endl;
+    std::cerr << "OUTPUT: " << line.toStdString() << std::endl;
 #endif
 }
 
@@ -680,7 +684,7 @@ bool Helper::readArguments(int mincount)
     for(;;)
     {
         QString line = readLine();
-        if(input.atEnd())
+        if(!std::cin.good())
         {
             arguments.clear();
             return false;
@@ -690,7 +694,7 @@ bool Helper::readArguments(int mincount)
             arguments_read = true;
             if(arguments.count() >= mincount)
                 return true;
-            QTextStream(stderr) << "Not enough arguments for KDE helper." << endl;
+            std::cerr << "Not enough arguments for KDE helper." << std::endl;
             return false;
         }
         arguments.append(line);
@@ -719,7 +723,7 @@ bool Helper::allArgumentsUsed()
     arguments_read = false;
     if(arguments.isEmpty())
         return true;
-    QTextStream(stderr) << "Unused arguments for KDE helper:" << arguments.join(" ") << endl;
+    std::cerr << "Unused arguments for KDE helper:" << arguments.join(" ").toStdString() << std::endl;
     arguments.clear();
     return false;
 }

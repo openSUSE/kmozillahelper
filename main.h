@@ -26,7 +26,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <QtCore/QMimeType>
 #include <QtCore/QSocketNotifier>
-#include <QtCore/QTextStream>
 
 class Helper : public QObject
 {
@@ -67,8 +66,6 @@ protected:
 private slots:
     void readCommand();
 private:
-    QTextStream input;
-    QTextStream output;
     QSocketNotifier notifier;
     QStringList arguments;
     bool arguments_read;
