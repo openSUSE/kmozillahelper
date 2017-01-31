@@ -345,13 +345,11 @@ bool Helper::handleGetOpenOrSaveX(bool url, bool save)
         return false;
 
     if(title.isEmpty())
-        title = i18n("Open");
+        title = save ? i18n("Save") : i18n("Open");
 
-    QFileDialog dialog;
+    QFileDialog dialog(nullptr, title, defaultPath.path());
 
-    dialog.setDirectoryUrl(defaultPath.path());
     dialog.selectFile(defaultPath.fileName());
-    dialog.setWindowTitle(title);
     dialog.setNameFilters(filtersParsed);
     dialog.setOption(QFileDialog::DontConfirmOverwrite, false);
     dialog.setAcceptMode(save ? QFileDialog::AcceptSave : QFileDialog::AcceptOpen);
