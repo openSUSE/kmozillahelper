@@ -324,7 +324,10 @@ QStringList Helper::convertToNameFilters(const QString &input)
         // TODO: Is it possible that | appears in either of those?
         auto data = filter.split('|');
 
-        ret.append(QStringLiteral("%0 (%1)(%1)").arg(data[1]).arg(data[0]));
+        if (data.length() == 1)
+            ret.append(QStringLiteral("%0 Files(%0)").arg(data[0]));
+        else if (data.length() >= 2)
+            ret.append(QStringLiteral("%0 (%1)(%1)").arg(data[1]).arg(data[0]));
     }
 
     return ret;
