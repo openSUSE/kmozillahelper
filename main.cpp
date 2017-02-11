@@ -98,7 +98,7 @@ void Helper::readCommand()
 
     // For now we only allow one command at once.
     // We need to do this as dialogs spawn their own eventloop and thus they get nested...
-    notifier.blockSignals(true);
+    notifier.setEnabled(false);
 
 #ifdef DEBUG_KDE
     std::cerr << "COMMAND: " << command.toStdString() << std::endl;
@@ -157,7 +157,7 @@ void Helper::readCommand()
     // in normal data (\ is escaped otherwise)
     outputLine(status ? "\\1" : "\\0", false); // do not escape
 
-    notifier.blockSignals(false);
+    notifier.setEnabled(true);
 }
 
 bool Helper::handleCheck()
