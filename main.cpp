@@ -48,6 +48,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <KIOWidgets/KRun>
 #include <KNotifications/KNotification>
 #include <KService/KMimeTypeTrader>
+#include <KWindowSystem/KWindowSystem>
 
 //#define DEBUG_KDE
 
@@ -74,32 +75,6 @@ int main(int argc, char* argv[])
     app.installEventFilter(&helper);
 
     return app.exec();
-}
-
-/* Workaround for Qt 5.9 somehow crashing firefox if the QWindow::fromWinId result gets deleted.
-   Original code copied from KWindowSystems. */
-static void setMainWindow(QWidget *subWidget, WId mainWindowId)
-{
-    // Set the WA_NativeWindow attribute to force the creation of the QWindow.
-    // Without this QWidget::windowHandle() returns 0.
-    subWidget->setAttribute(Qt::WA_NativeWindow, true);
-    QWindow *subWindow = subWidget->windowHandle();
-    Q_ASSERT(subWindow);
-
-    QWindow *mainWindow = QWindow::fromWinId(mainWindowId);
-    if (!mainWindow) {
-        // foreign windows not supported on all platforms
-        return;
-    }
-
-    #if QT_VERSION < QT_VERSION_CHECK(5, 9, 0)
-        // mainWindow is not the child of any object, so make sure it gets deleted at some point
-        QObject::connect(subWidget, &QObject::destroyed, mainWindow, &QObject::deleteLater);
-    #else
-        #warning Qt 5.9.0 has a bug that/behavioural change that makes firefox crash. This workaround however causes memory leaks.
-    #endif
-
-    subWindow->setTransientParent(mainWindow);
 }
 
 Helper::Helper()
@@ -317,7 +292,7 @@ bool Helper::handleAppsDialog()
     dialog.hideNoCloseOnExit();
     dialog.hideRunInTerminal(); // TODO
     if(wid != 0)
-        setMainWindow(&dialog, wid);
+        KWindowSystem::setMainWindow(&dialog, wid);
     if(dialog.exec())
     {
         KService::Ptr service = dialog.service();
@@ -685,7 +660,7 @@ bool Helper::eventFilter(QObject *obj, QEvent *ev)
         QWidget *widget = static_cast<QWidget*>(obj);
         widget->winId();
         if(wid)
-            setMainWindow(widget, wid);
+            KWindowSystem::setMainWindow(widget, wid);
     }
 
     return false;
