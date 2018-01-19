@@ -96,9 +96,13 @@ void Helper::readCommand()
         return;
     }
 
+    /* Allow multiple commands at once.
+       Firefox nests the event loop in the same way we do,
+       so if a file dialog is open, another command may arrive which we handle
+       in our nested event loop...
     // For now we only allow one command at once.
     // We need to do this as dialogs spawn their own eventloop and thus they get nested...
-    notifier.setEnabled(false);
+    notifier.setEnabled(false); */
 
 #ifdef DEBUG_KDE
     std::cerr << "COMMAND: " << command.toStdString() << std::endl;
@@ -157,7 +161,8 @@ void Helper::readCommand()
     // in normal data (\ is escaped otherwise)
     outputLine(status ? "\\1" : "\\0", false); // do not escape
 
-    notifier.setEnabled(true);
+    /* See comment on setEnabled above
+    notifier.setEnabled(true); */
 }
 
 bool Helper::handleCheck()
