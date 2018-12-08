@@ -57,7 +57,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 int main(int argc, char* argv[])
 {
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling, true);
+
     QApplication app(argc, argv);
+
+    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps, true);
 
     // This shows on file dialogs
     KAboutData about("kmozillahelper", i18n("Mozilla Firefox"), APP_HELPER_VERSION);
