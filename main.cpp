@@ -458,7 +458,7 @@ bool Helper::handleOpen()
     QMimeType mimeType = QMimeDatabase().mimeTypeForName(mime);
     if(!mime.isEmpty() && mimeType.isValid() && KMimeTypeTrader::self()->preferredService(mimeType.name()))
     {
-        return KRun::runUrl(url, mime, NULL); // TODO parent
+        return KRun::runUrl(url, mime, NULL, KRun::RunFlags()); // TODO parent
     }
     else
     {
