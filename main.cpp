@@ -85,7 +85,8 @@ Helper::Helper()
     : notifier(STDIN_FILENO, QSocketNotifier::Read)
     , arguments_read(false)
 {
-    connect(&notifier, SIGNAL(activated(int)), SLOT(readCommand()));
+    connect(&notifier, &QSocketNotifier::activated,
+            this, &Helper::readCommand);
 }
 
 void Helper::readCommand()
