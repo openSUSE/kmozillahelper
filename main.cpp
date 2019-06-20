@@ -85,7 +85,8 @@ Helper::Helper()
     : notifier(STDIN_FILENO, QSocketNotifier::Read)
     , arguments_read(false)
 {
-    connect(&notifier, SIGNAL(activated(int)), SLOT(readCommand()));
+    connect(&notifier, &QSocketNotifier::activated,
+            this, &Helper::readCommand);
 }
 
 void Helper::readCommand()
@@ -458,7 +459,7 @@ bool Helper::handleOpen()
     QMimeType mimeType = QMimeDatabase().mimeTypeForName(mime);
     if(!mime.isEmpty() && mimeType.isValid() && KMimeTypeTrader::self()->preferredService(mimeType.name()))
     {
-        return KRun::runUrl(url, mime, NULL); // TODO parent
+        return KRun::runUrl(url, mime, NULL, KRun::RunFlags()); // TODO parent
     }
     else
     {
