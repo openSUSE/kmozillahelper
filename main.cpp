@@ -218,18 +218,13 @@ bool Helper::handleHandlerExists()
     if(!allArgumentsUsed())
         return false;
 
-    const auto it(known_protocols.constFind(protocol));
-    if(it != known_protocols.cend() && it.value())
+    auto it(known_protocols.find(protocol));
+    if(it == known_protocols.end())
+        it = known_protocols.insert(protocol, KProtocolInfo::isHelperProtocol(protocol));
+
+    if(*it)
         return true;
-    else if(it == known_protocols.cend())
-    {
-        if(KProtocolInfo::isHelperProtocol(protocol))
-        {
-            known_protocols.insert(protocol, true);
-            return true;
-        }
-        known_protocols.insert(protocol, false);
-    }
+
     return KMimeTypeTrader::self()->preferredService(QLatin1String("x-scheme-handler/") + protocol) != nullptr;
 }
 
