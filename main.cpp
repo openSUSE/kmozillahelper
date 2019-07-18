@@ -31,6 +31,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <QtCore/QCommandLineParser>
 #include <QtCore/QMimeDatabase>
+#include <QtCore/QHash>
 #include <QtGui/QIcon>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QFileDialog>
@@ -208,14 +209,27 @@ bool Helper::handleGetProxy()
 
 bool Helper::handleHandlerExists()
 {
+    // Cache protocols types to avoid causing Thunderbird to hang (https://bugzilla.suse.com/show_bug.cgi?id=1037806).
+    static QHash<QString,bool> known_protocols;
+
     if(!readArguments(1))
         return false;
     QString protocol = getArgument();
     if(!allArgumentsUsed())
         return false;
-    if(KProtocolInfo::isHelperProtocol(protocol))
-        return true;
 
+    const auto it(known_protocols.constFind(protocol));
+    if(it != known_protocols.cend() && it.value())
+        return true;
+    else if(it == known_protocols.cend())
+    {
+        if(KProtocolInfo::isHelperProtocol(protocol))
+        {
+            known_protocols.insert(protocol, true);
+            return true;
+        }
+        known_protocols.insert(protocol, false);
+    }
     return KMimeTypeTrader::self()->preferredService(QLatin1String("x-scheme-handler/") + protocol) != nullptr;
 }
 
