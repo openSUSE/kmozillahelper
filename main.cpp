@@ -25,6 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "main.h"
 
 #include <cassert>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <iostream>
@@ -64,8 +65,14 @@ int main(int argc, char* argv[])
 
     QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps, true);
 
+    // Check whether we're called from Firefox or Thunderbird
+    QString appname = i18n("Mozilla Firefox");
+    QString parent = QFile::symLinkTarget(QStringLiteral("/proc/%1/exe").arg(int(getppid())));
+    if(parent.contains("thunderbird", Qt::CaseInsensitive))
+        appname = i18n("Mozilla Thunderbird");
+
     // This shows on file dialogs
-    KAboutData about("kmozillahelper", i18n("Mozilla Firefox"), APP_HELPER_VERSION);
+    KAboutData about("kmozillahelper", appname, APP_HELPER_VERSION);
     about.setBugAddress("https://bugzilla.opensuse.org/enter_bug.cgi");
     KAboutData::setApplicationData(about);
     QApplication::setQuitOnLastWindowClosed(false);
