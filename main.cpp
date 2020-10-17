@@ -59,6 +59,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 int main(int argc, char* argv[])
 {
+    // Avoid getting started by the session manager
+    qunsetenv("SESSION_MANAGER");
+
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling, true);
 
     QApplication app(argc, argv);
