@@ -321,7 +321,12 @@ bool Helper::handleAppsDialog()
     dialog.hideNoCloseOnExit();
     dialog.hideRunInTerminal(); // TODO
     if(wid != 0)
-        KWindowSystem::setMainWindow(&dialog, wid);
+    {
+        dialog.setAttribute(Qt::WA_NativeWindow, true);
+        QWindow *subWindow = dialog.windowHandle();
+        if(subWindow)
+            KWindowSystem::setMainWindow(subWindow, wid);
+    }
     if(dialog.exec())
     {
         KService::Ptr service = dialog.service();
@@ -687,9 +692,13 @@ bool Helper::eventFilter(QObject *obj, QEvent *ev)
     if(ev->type() == QEvent::Show && obj->inherits("QDialog"))
     {
         QWidget *widget = static_cast<QWidget*>(obj);
-        widget->winId();
-        if(wid)
-            KWindowSystem::setMainWindow(widget, wid);
+        if(wid != 0)
+        {
+            widget->setAttribute(Qt::WA_NativeWindow, true);
+            QWindow *subWindow = widget->windowHandle();
+            if(subWindow)
+                KWindowSystem::setMainWindow(subWindow, wid);
+        }
     }
 
     return false;
