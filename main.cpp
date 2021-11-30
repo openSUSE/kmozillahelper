@@ -48,6 +48,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <KIOCore/KRecentDocument>
 #include <KIOWidgets/KOpenWithDialog>
 #include <KIOWidgets/KRun>
+#include <KIO/OpenUrlJob>
 #include <KNotifications/KNotification>
 #include <KService/KMimeTypeTrader>
 #include <KWindowSystem/KWindowSystem>
@@ -479,19 +480,10 @@ bool Helper::handleOpen()
         mime = getArgument();
     if(!allArgumentsUsed())
         return false;
-    // try to handle the case when the server has broken mimetypes and e.g. claims something is application/octet-stream
-    QMimeType mimeType = QMimeDatabase().mimeTypeForName(mime);
-    if(!mime.isEmpty() && mimeType.isValid() && KMimeTypeTrader::self()->preferredService(mimeType.name()))
-    {
-        return KRun::runUrl(url, mime, NULL, KRun::RunFlags()); // TODO parent
-    }
-    else
-    {
-        (void) new KRun(url, NULL); // TODO parent
-        //    QObject::connect(run, SIGNAL(finished()), &app, SLOT(openDone()));
-        //    QObject::connect(run, SIGNAL(error()), &app, SLOT(openDone()));
-        return true; // TODO check for errors?
-    }
+
+    auto ouj = new KIO::OpenUrlJob(url, mime);
+    ouj->start();
+    return true;
 }
 
 bool Helper::handleReveal()
