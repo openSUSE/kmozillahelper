@@ -477,8 +477,9 @@ bool Helper::handleOpen()
     if(!allArgumentsUsed())
         return false;
 
-    auto ouj = new KIO::OpenUrlJob(url, mime);
-    ouj->start();
+    auto job = new KIO::OpenUrlJob(url, mime);
+    job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
+    job->start();
     return true;
 }
 
@@ -503,8 +504,9 @@ bool Helper::handleReveal()
     }
     QFileInfo info(path);
     QString dir = info.dir().path();
-    auto ouj = new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), NULL);
-    ouj->start();
+    auto job = new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), NULL);
+    job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
+    job->start();
     return true; // TODO check for errors?
 }
 
@@ -516,7 +518,7 @@ bool Helper::handleRun()
     QString arg = getArgument();
     if(!allArgumentsUsed())
         return false;
-    auto *job = new KIO::CommandLauncherJob(app, {arg});
+    auto job = new KIO::CommandLauncherJob(app, {arg});
     job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
     job->start();
     return true;
@@ -555,7 +557,7 @@ bool Helper::handleOpenMail()
     KService::Ptr mail = KService::serviceByDesktopName(command.split(" ").first());
     if(mail)
     {
-        auto *job = new KIO::ApplicationLauncherJob(mail);
+        auto job = new KIO::ApplicationLauncherJob(mail);
         job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
         job->start();
     }
