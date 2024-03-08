@@ -38,20 +38,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <QtWidgets/QFileDialog>
 #include <QWindow>
 
-#include <KConfigCore/KConfigGroup>
-#include <KConfigCore/KSharedConfig>
-#include <KCoreAddons/KAboutData>
-#include <KCoreAddons/KShell>
-#include <KCoreAddons/KProcess>
-#include <KI18n/KLocalizedString>
-#include <KIOCore/KProtocolManager>
-#include <KIOCore/KRecentDocument>
-#include <KIOWidgets/KOpenWithDialog>
-#include <KIOWidgets/KRun>
+#include <KAboutData>
+#include <KApplicationTrader>
+#include <KConfigGroup>
+#include <KIO/ApplicationLauncherJob>
+#include <KIO/CommandLauncherJob>
+#include <KIO/JobUiDelegate>
 #include <KIO/OpenUrlJob>
-#include <KNotifications/KNotification>
-#include <KService/KMimeTypeTrader>
-#include <KWindowSystem/KWindowSystem>
+#include <KLocalizedString>
+#include <KNotification>
+#include <KNotificationJobUiDelegate>
+#include <KOpenWithDialog>
+#include <KProcess>
+#include <KProtocolManager>
+#include <KRecentDocument>
+#include <KSharedConfig>
+#include <KShell>
+#include <KWindowSystem>
 
 //#define DEBUG_KDE
 
@@ -63,11 +66,7 @@ int main(int argc, char* argv[])
     // Avoid getting started by the session manager
     qunsetenv("SESSION_MANAGER");
 
-    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling, true);
-
     QApplication app(argc, argv);
-
-    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps, true);
 
     // Check whether we're called from Firefox or Thunderbird
     QString appname = i18n("Mozilla Firefox");
@@ -161,8 +160,6 @@ void Helper::readCommand()
         status = handleGetDefaultFeedReader();
     else if(command == "OPENMAIL")
         status = handleOpenMail();
-    else if(command == "OPENNEWS")
-        status = handleOpenNews();
     else if(command == "ISDEFAULTBROWSER")
         status = handleIsDefaultBrowser();
     else if(command == "SETDEFAULTBROWSER")
@@ -203,7 +200,6 @@ bool Helper::handleGetProxy()
     if(!allArgumentsUsed())
         return false;
     QString proxy;
-    KProtocolManager::slaveProtocol(url, proxy);
     if(proxy.isEmpty() || proxy == "DIRECT") // TODO return DIRECT if empty?
     {
         outputLine("DIRECT");
@@ -237,7 +233,7 @@ bool Helper::handleHandlerExists()
     if(*it)
         return true;
 
-    return KMimeTypeTrader::self()->preferredService(QLatin1String("x-scheme-handler/") + protocol) != nullptr;
+    return KApplicationTrader::preferredService(QLatin1String("x-scheme-handler/") + protocol) != nullptr;
 }
 
 bool Helper::handleGetFromExtension()
@@ -281,7 +277,7 @@ bool Helper::handleGetFromType()
 
 bool Helper::writeMimeInfo(QMimeType mime)
 {
-    KService::Ptr service = KMimeTypeTrader::self()->preferredService(mime.name());
+    KService::Ptr service = KApplicationTrader::preferredService(mime.name());
     if(service)
     {
         outputLine(mime.name());
@@ -493,7 +489,7 @@ bool Helper::handleReveal()
     QString path = getArgument();
     if(!allArgumentsUsed())
         return false;
-    const KService::List apps = KMimeTypeTrader::self()->query("inode/directory", "Application");
+    const KService::List apps = KApplicationTrader::queryByMimeType(QStringLiteral("inode/directory"));
     if(apps.size() != 0)
     {
         QString command = apps.at(0)->exec().split(" ").first(); // only the actual command
@@ -507,7 +503,8 @@ bool Helper::handleReveal()
     }
     QFileInfo info(path);
     QString dir = info.dir().path();
-    (void) new KRun(QUrl::fromLocalFile(dir), NULL); // TODO parent
+    auto ouj = new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), NULL);
+    ouj->start();
     return true; // TODO check for errors?
 }
 
@@ -519,7 +516,10 @@ bool Helper::handleRun()
     QString arg = getArgument();
     if(!allArgumentsUsed())
         return false;
-    return KRun::runCommand(KShell::quoteArg(app) + " " + KShell::quoteArg(arg), NULL); // TODO parent, ASN
+    auto *job = new KIO::CommandLauncherJob(app, {arg});
+    job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
+    job->start();
+    return true;
 }
 
 bool Helper::handleGetDefaultFeedReader()
@@ -555,20 +555,9 @@ bool Helper::handleOpenMail()
     KService::Ptr mail = KService::serviceByDesktopName(command.split(" ").first());
     if(mail)
     {
-        return KRun::runService(*mail, QList<QUrl>(), NULL); // TODO parent
-    }
-    return false;
-}
-
-bool Helper::handleOpenNews()
-{
-    if(!readArguments(0))
-        return false;
-    KService::Ptr news = KService::serviceByDesktopName("knode"); // TODO there is no KDE setting for this
-    if(news)
-    {
-        //KApplication::updateUserTimestamp(0); // TODO
-        return KRun::runService(*news, QList<QUrl>(), NULL); // TODO parent
+        auto *job = new KIO::ApplicationLauncherJob(mail);
+        job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
+        job->start();
     }
     return false;
 }
@@ -619,7 +608,7 @@ bool Helper::handleDownloadFinished()
 QString Helper::getAppForProtocol(const QString& protocol)
 {
     /* Inspired by kio's krun.cpp */
-    const KService::Ptr service = KMimeTypeTrader::self()->preferredService(QLatin1String("x-scheme-handler/") + protocol);
+    const KService::Ptr service = KApplicationTrader::preferredService(QLatin1String("x-scheme-handler/") + protocol);
     if (service)
         return service->name();
 

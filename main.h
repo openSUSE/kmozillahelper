@@ -47,7 +47,6 @@ private:
     bool handleRun();
     bool handleGetDefaultFeedReader();
     bool handleOpenMail();
-    bool handleOpenNews();
     bool handleIsDefaultBrowser();
     bool handleSetDefaultBrowser();
     bool handleDownloadFinished();

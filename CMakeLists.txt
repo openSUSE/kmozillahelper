@@ -13,11 +13,11 @@ include(KDECMakeSettings)
 include(KDECompilerSettings)
 include(FeatureSummary)
 
-find_package(KF5 REQUIRED COMPONENTS Notifications KIO WindowSystem I18n)
+find_package(KF6 REQUIRED COMPONENTS Notifications KIO WindowSystem I18n)
 
 add_executable(kmozillahelper main.cpp)
 
-target_link_libraries(kmozillahelper KF5::I18n KF5::KIOWidgets KF5::Notifications KF5::WindowSystem)
+target_link_libraries(kmozillahelper KF6::I18n KF6::KIOWidgets KF6::Notifications KF6::WindowSystem)
 
 install(TARGETS kmozillahelper DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/mozilla/)
 install(FILES kmozillahelper.notifyrc DESTINATION ${KNOTIFYRC_INSTALL_DIR})
