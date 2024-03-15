@@ -24,15 +24,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef MAIN_H
 #define MAIN_H
 
-#include <QtCore/QMimeType>
-#include <QtCore/QSocketNotifier>
+#include <QMimeType>
+#include <QSocketNotifier>
 
 class Helper : public QObject
 {
     Q_OBJECT
-public:
+  public:
     Helper();
-private:
+
+  private:
     bool handleCheck();
     bool handleGetProxy();
     bool handleHandlerExists();
@@ -52,19 +53,21 @@ private:
     bool handleDownloadFinished();
     QStringList convertToNameFilters(const QString &input);
     bool writeMimeInfo(QMimeType mime);
-    QString getAppForProtocol(const QString& protocol);
+    QString getAppForProtocol(const QString &protocol);
     bool readArguments(int mincount);
     QString getArgument();
-    bool isArgument(const QString& name); // also discards the line with it
+    bool isArgument(const QString &name); // also discards the line with it
     bool allArgumentsUsed();
     long getArgumentParent();
     void outputLine(QString line, bool escape = true);
     QString readLine();
-protected:
+
+  protected:
     virtual bool eventFilter(QObject *obj, QEvent *ev) override;
-private slots:
+  private slots:
     void readCommand();
-private:
+
+  private:
     QSocketNotifier notifier;
     QStringList arguments;
     bool arguments_read;
