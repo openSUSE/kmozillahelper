@@ -45,12 +45,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <KIO/CommandLauncherJob>
 #include <KIO/JobUiDelegate>
 #include <KIO/OpenUrlJob>
-#include <KIO/WorkerBase>
 #include <KLocalizedString>
 #include <KNotification>
 #include <KNotificationJobUiDelegate>
 #include <KOpenWithDialog>
 #include <KProcess>
+#include <KProtocolInfo>
 #include <KRecentDocument>
 #include <KSharedConfig>
 #include <KShell>
@@ -206,7 +206,6 @@ bool Helper::handleGetProxy()
     if (!allArgumentsUsed())
         return false;
     QString proxy;
-    KIO::WorkerBase(url, proxy);
     if (proxy.isEmpty() || proxy == "DIRECT") // TODO return DIRECT if empty?
     {
         outputLine("DIRECT");
@@ -485,7 +484,7 @@ bool Helper::handleOpen()
         return false;
     // try to handle the case when the server has broken mimetypes and e.g. claims something is application/octet-stream
     QMimeType mimeType = QMimeDatabase().mimeTypeForName(mime);
-    if(!mime.isEmpty() && mimeType.isValid() && KApplicationTrader::preferredService(mimeType.name()))
+    if (!mime.isEmpty() && mimeType.isValid() && KApplicationTrader::preferredService(mimeType.name()))
     {
         KIO::OpenUrlJob *job = new KIO::OpenUrlJob(url, mime);
         job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
@@ -495,7 +494,7 @@ bool Helper::handleOpen()
     }
     else
     {
-        (void) new KIO::OpenUrlJob(url, NULL);
+        (void)new KIO::OpenUrlJob(url, NULL);
         //    QObject::connect(run, SIGNAL(finished()), &app, SLOT(openDone()));
         //    QObject::connect(run, SIGNAL(error()), &app, SLOT(openDone()));
         return true; // TODO check for errors?
@@ -523,8 +522,8 @@ bool Helper::handleReveal()
     }
     QFileInfo info(path);
     QString dir = info.dir().path();
-    (void) new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), NULL); // TODO parent
-    return true; // TODO check for errors?
+    (void)new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), NULL); // TODO parent
+    return true;                                               // TODO check for errors?
 }
 
 bool Helper::handleRun()
