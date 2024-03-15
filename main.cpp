@@ -166,6 +166,8 @@ void Helper::readCommand()
         status = handleGetDefaultFeedReader();
     else if (command == "OPENMAIL")
         status = handleOpenMail();
+    else if (command == "OPENNEWS")
+        status = handleOpenNews();
     else if (command == "ISDEFAULTBROWSER")
         status = handleIsDefaultBrowser();
     else if (command == "SETDEFAULTBROWSER")
@@ -575,6 +577,18 @@ bool Helper::handleOpenMail()
     if (mail)
     {
         return runApplication(mail, QList<QUrl>()); // TODO parent
+    }
+    return false;
+}
+
+bool Helper::handleOpenNews()
+{
+    if (!readArguments(0))
+        return false;
+    KService::Ptr news = KService::serviceByDesktopName("knode"); // TODO there is no KDE setting for this
+    if (news)
+    {
+        return runApplication(news, QList<QUrl>()); // TODO parent
     }
     return false;
 }
