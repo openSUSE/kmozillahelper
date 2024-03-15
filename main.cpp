@@ -43,13 +43,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <KCoreAddons/KAboutData>
 #include <KCoreAddons/KShell>
 #include <KCoreAddons/KProcess>
+#include <KDialogJobUiDelegate>
 #include <KI18n/KLocalizedString>
+#include <KIO/ApplicationLauncherJob>
+#include <KIO/CommandLauncherJob>
+#include <KIO/OpenUrlJob>
 #include <KIOCore/KProtocolManager>
 #include <KIOCore/KRecentDocument>
 #include <KIOWidgets/KOpenWithDialog>
-#include <KIOWidgets/KRun>
 #include <KNotifications/KNotification>
-#include <KService/KMimeTypeTrader>
+#include <KNotifications/KNotificationJobUiDelegate>
+#include <KService/KApplicationTrader>
 #include <KWindowSystem/KWindowSystem>
 
 //#define DEBUG_KDE
@@ -98,6 +102,15 @@ Helper::Helper()
 {
     connect(&notifier, &QSocketNotifier::activated,
             this, &Helper::readCommand);
+}
+
+static bool runApplication(const KService::Ptr &service, const QList<QUrl> &urls)
+{
+    auto *job = new KIO::ApplicationLauncherJob(service);
+    job->setUrls(urls);
+    job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
+    job->start();
+    return true;
 }
 
 void Helper::readCommand()
@@ -202,7 +215,7 @@ bool Helper::handleGetProxy()
     if(!allArgumentsUsed())
         return false;
     QString proxy;
-    KProtocolManager::slaveProtocol(url, proxy);
+    KProtocolManager::workerProtocol(url, proxy);
     if(proxy.isEmpty() || proxy == "DIRECT") // TODO return DIRECT if empty?
     {
         outputLine("DIRECT");
@@ -236,7 +249,7 @@ bool Helper::handleHandlerExists()
     if(*it)
         return true;
 
-    return KMimeTypeTrader::self()->preferredService(QLatin1String("x-scheme-handler/") + protocol) != nullptr;
+    return KApplicationTrader::preferredService(QLatin1String("x-scheme-handler/") + protocol) != nullptr;
 }
 
 bool Helper::handleGetFromExtension()
@@ -280,7 +293,7 @@ bool Helper::handleGetFromType()
 
 bool Helper::writeMimeInfo(QMimeType mime)
 {
-    KService::Ptr service = KMimeTypeTrader::self()->preferredService(mime.name());
+    KService::Ptr service = KApplicationTrader::preferredService(mime.name());
     if(service)
     {
         outputLine(mime.name());
@@ -323,9 +336,7 @@ bool Helper::handleAppsDialog()
     if(wid != 0)
     {
         dialog.setAttribute(Qt::WA_NativeWindow, true);
-        QWindow *subWindow = dialog.windowHandle();
-        if(subWindow)
-            KWindowSystem::setMainWindow(subWindow, wid);
+        KWindowSystem::setMainWindow(dialog.windowHandle(), wid);
     }
     if(dialog.exec())
     {
@@ -481,13 +492,17 @@ bool Helper::handleOpen()
         return false;
     // try to handle the case when the server has broken mimetypes and e.g. claims something is application/octet-stream
     QMimeType mimeType = QMimeDatabase().mimeTypeForName(mime);
-    if(!mime.isEmpty() && mimeType.isValid() && KMimeTypeTrader::self()->preferredService(mimeType.name()))
+    if(!mime.isEmpty() && mimeType.isValid() && KApplicationTrader::preferredService(mimeType.name()))
     {
-        return KRun::runUrl(url, mime, NULL, KRun::RunFlags()); // TODO parent
+        KIO::OpenUrlJob *job = new KIO::OpenUrlJob(url, mime);
+        job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
+        job->setDeleteTemporaryFile(true); // delete the file, once the client exits
+        job->start();
+        return true;
     }
     else
     {
-        (void) new KRun(url, NULL); // TODO parent
+        (void) new KIO::OpenUrlJob(url, NULL);
         //    QObject::connect(run, SIGNAL(finished()), &app, SLOT(openDone()));
         //    QObject::connect(run, SIGNAL(error()), &app, SLOT(openDone()));
         return true; // TODO check for errors?
@@ -501,7 +516,7 @@ bool Helper::handleReveal()
     QString path = getArgument();
     if(!allArgumentsUsed())
         return false;
-    const KService::List apps = KMimeTypeTrader::self()->query("inode/directory", "Application");
+    const KService::List apps = KApplicationTrader::queryByMimeType(QStringLiteral("inode/directory"));
     if(apps.size() != 0)
     {
         QString command = apps.at(0)->exec().split(" ").first(); // only the actual command
@@ -515,7 +530,7 @@ bool Helper::handleReveal()
     }
     QFileInfo info(path);
     QString dir = info.dir().path();
-    (void) new KRun(QUrl::fromLocalFile(dir), NULL); // TODO parent
+    (void) new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), NULL); // TODO parent
     return true; // TODO check for errors?
 }
 
@@ -527,7 +542,10 @@ bool Helper::handleRun()
     QString arg = getArgument();
     if(!allArgumentsUsed())
         return false;
-    return KRun::runCommand(KShell::quoteArg(app) + " " + KShell::quoteArg(arg), NULL); // TODO parent, ASN
+    auto job = new KIO::CommandLauncherJob(KShell::quoteArg(app), {KShell::quoteArg(arg)});
+    job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
+    job->start();
+    return true;
 }
 
 bool Helper::handleGetDefaultFeedReader()
@@ -563,7 +581,7 @@ bool Helper::handleOpenMail()
     KService::Ptr mail = KService::serviceByDesktopName(command.split(" ").first());
     if(mail)
     {
-        return KRun::runService(*mail, QList<QUrl>(), NULL); // TODO parent
+        return runApplication(mail, QList<QUrl>()); // TODO parent
     }
     return false;
 }
@@ -576,7 +594,7 @@ bool Helper::handleOpenNews()
     if(news)
     {
         //KApplication::updateUserTimestamp(0); // TODO
-        return KRun::runService(*news, QList<QUrl>(), NULL); // TODO parent
+        return runApplication(news, QList<QUrl>());
     }
     return false;
 }
@@ -627,7 +645,7 @@ bool Helper::handleDownloadFinished()
 QString Helper::getAppForProtocol(const QString& protocol)
 {
     /* Inspired by kio's krun.cpp */
-    const KService::Ptr service = KMimeTypeTrader::self()->preferredService(QLatin1String("x-scheme-handler/") + protocol);
+    const KService::Ptr service = KApplicationTrader::preferredService(QLatin1String("x-scheme-handler/") + protocol);
     if (service)
         return service->name();
 
@@ -695,9 +713,7 @@ bool Helper::eventFilter(QObject *obj, QEvent *ev)
         if(wid != 0)
         {
             widget->setAttribute(Qt::WA_NativeWindow, true);
-            QWindow *subWindow = widget->windowHandle();
-            if(subWindow)
-                KWindowSystem::setMainWindow(subWindow, wid);
+            KWindowSystem::setMainWindow(widget->windowHandle(), wid);
         }
     }
 
