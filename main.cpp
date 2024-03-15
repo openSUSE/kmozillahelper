@@ -45,12 +45,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <KIO/CommandLauncherJob>
 #include <KIO/JobUiDelegate>
 #include <KIO/OpenUrlJob>
+#include <KIO/WorkerBase>
 #include <KLocalizedString>
 #include <KNotification>
 #include <KNotificationJobUiDelegate>
 #include <KOpenWithDialog>
 #include <KProcess>
-#include <KProtocolManager>
 #include <KRecentDocument>
 #include <KSharedConfig>
 #include <KShell>
@@ -95,6 +95,15 @@ int main(int argc, char *argv[])
 Helper::Helper() : notifier(STDIN_FILENO, QSocketNotifier::Read), arguments_read(false)
 {
     connect(&notifier, &QSocketNotifier::activated, this, &Helper::readCommand);
+}
+
+static bool runApplication(const KService::Ptr &service, const QList<QUrl> &urls)
+{
+    auto *job = new KIO::ApplicationLauncherJob(service);
+    job->setUrls(urls);
+    job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
+    job->start();
+    return true;
 }
 
 void Helper::readCommand()
@@ -197,6 +206,7 @@ bool Helper::handleGetProxy()
     if (!allArgumentsUsed())
         return false;
     QString proxy;
+    KIO::WorkerBase(url, proxy);
     if (proxy.isEmpty() || proxy == "DIRECT") // TODO return DIRECT if empty?
     {
         outputLine("DIRECT");
@@ -319,9 +329,7 @@ bool Helper::handleAppsDialog()
     if (wid != 0)
     {
         dialog.setAttribute(Qt::WA_NativeWindow, true);
-        QWindow *subWindow = dialog.windowHandle();
-        if (subWindow)
-            KWindowSystem::setMainWindow(subWindow, wid);
+        KWindowSystem::setMainWindow(dialog.windowHandle(), wid);
     }
     if (dialog.exec())
     {
@@ -475,11 +483,23 @@ bool Helper::handleOpen()
         mime = getArgument();
     if (!allArgumentsUsed())
         return false;
-
-    auto job = new KIO::OpenUrlJob(url, mime);
-    job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
-    job->start();
-    return true;
+    // try to handle the case when the server has broken mimetypes and e.g. claims something is application/octet-stream
+    QMimeType mimeType = QMimeDatabase().mimeTypeForName(mime);
+    if(!mime.isEmpty() && mimeType.isValid() && KApplicationTrader::preferredService(mimeType.name()))
+    {
+        KIO::OpenUrlJob *job = new KIO::OpenUrlJob(url, mime);
+        job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
+        job->setDeleteTemporaryFile(true); // delete the file, once the client exits
+        job->start();
+        return true;
+    }
+    else
+    {
+        (void) new KIO::OpenUrlJob(url, NULL);
+        //    QObject::connect(run, SIGNAL(finished()), &app, SLOT(openDone()));
+        //    QObject::connect(run, SIGNAL(error()), &app, SLOT(openDone()));
+        return true; // TODO check for errors?
+    }
 }
 
 bool Helper::handleReveal()
@@ -503,9 +523,7 @@ bool Helper::handleReveal()
     }
     QFileInfo info(path);
     QString dir = info.dir().path();
-    auto job = new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), NULL);
-    job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
-    job->start();
+    (void) new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), NULL); // TODO parent
     return true; // TODO check for errors?
 }
 
@@ -517,7 +535,7 @@ bool Helper::handleRun()
     QString arg = getArgument();
     if (!allArgumentsUsed())
         return false;
-    auto job = new KIO::CommandLauncherJob(app, {arg});
+    auto job = new KIO::CommandLauncherJob(KShell::quoteArg(app), {KShell::quoteArg(arg)});
     job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
     job->start();
     return true;
@@ -557,9 +575,7 @@ bool Helper::handleOpenMail()
     KService::Ptr mail = KService::serviceByDesktopName(command.split(" ").first());
     if (mail)
     {
-        auto job = new KIO::ApplicationLauncherJob(mail);
-        job->setUiDelegate(new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled));
-        job->start();
+        return runApplication(mail, QList<QUrl>()); // TODO parent
     }
     return false;
 }
@@ -677,9 +693,7 @@ bool Helper::eventFilter(QObject *obj, QEvent *ev)
         if (wid != 0)
         {
             widget->setAttribute(Qt::WA_NativeWindow, true);
-            QWindow *subWindow = widget->windowHandle();
-            if (subWindow)
-                KWindowSystem::setMainWindow(subWindow, wid);
+            KWindowSystem::setMainWindow(widget->windowHandle(), wid);
         }
     }
 
