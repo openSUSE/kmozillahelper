@@ -15,6 +15,10 @@ include(FeatureSummary)
 
 find_package(KF6 REQUIRED COMPONENTS Notifications KIO WindowSystem I18n)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(DEBUG_KDE "ON")
+endif()
+
 add_executable(kmozillahelper main.cpp)
 
 target_link_libraries(kmozillahelper KF6::I18n KF6::KIOWidgets KF6::Notifications KF6::WindowSystem)
