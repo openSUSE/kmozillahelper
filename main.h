@@ -64,8 +64,9 @@ private:
     QString readLine();
 
 protected:
-    virtual bool eventFilter(QObject *obj, QEvent *ev) override;
-private slots:
+    bool eventFilter(QObject *obj, QEvent *event) override;
+
+    Q_SLOT
     void readCommand();
 
 private:
