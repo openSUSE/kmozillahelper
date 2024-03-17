@@ -1,16 +1,18 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.20.6)
 
 project(kmozillahelper)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(KF_MIN_VERSION "5.85.0")
 
 find_package(
     ECM
-    1.0.0
+    ${KF_MIN_VERSION}
     REQUIRED
     NO_MODULE)
 
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH} ${ECM_KDE_MODULE_DIR})
+
+set(KDE_COMPILERSETTINGS_LEVEL ${KF_MIN_VERSION})
 
 include(KDEInstallDirs)
 include(KDECMakeSettings)
@@ -24,7 +26,7 @@ find_package(
                WindowSystem
                I18n)
 
-add_executable(kmozillahelper main.cpp)
+add_executable(kmozillahelper main.cpp main.h)
 
 target_link_libraries(
     kmozillahelper
