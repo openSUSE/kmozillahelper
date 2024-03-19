@@ -44,12 +44,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <KCoreAddons/KProcess>
 #include <KCoreAddons/KShell>
 #include <KI18n/KLocalizedString>
+#include <KIO/ApplicationLauncherJob>
+#include <KIO/CommandLauncherJob>
+#include <KService/KApplicationTrader>
+#include <kio_version.h>
+#if KIO_VERSION >= QT_VERSION_CHECK(5, 98, 0)
+#include <KIO/JobUiDelegateFactory>
+#else
+#include <KIO/JobUiDelegate>
+#endif
 #include <KIO/OpenUrlJob>
-#include <KIOCore/KProtocolManager>
 #include <KIOCore/KRecentDocument>
 #include <KIOWidgets/KOpenWithDialog>
-#include <KIOWidgets/KRun>
 #include <KNotifications/KNotification>
+#include <KProtocolInfo>
 #include <KService/KMimeTypeTrader>
 #include <KWindowSystem/KWindowSystem>
 
@@ -96,6 +104,19 @@ int main(int argc, char *argv[])
 Helper::Helper() : notifier(STDIN_FILENO, QSocketNotifier::Read), arguments_read(false)
 {
     connect(&notifier, &QSocketNotifier::activated, this, &Helper::readCommand);
+}
+
+static bool runApplication(const KService::Ptr &service, const QList<QUrl> &urls)
+{
+    auto *job = new KIO::ApplicationLauncherJob(service);
+    job->setUrls(urls);
+#if KIO_VERSION >= QT_VERSION_CHECK(5, 98, 0)
+    job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+#else
+    job->setUiDelegate(new KIO::JobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+#endif
+    job->start();
+    return true;
 }
 
 void Helper::readCommand()
@@ -209,12 +230,12 @@ bool Helper::handleGetProxy()
     // return DIRECT otherwise
     if (url.isValid())
     {
-        if(proxy == QString::fromUtf8("PROXY") || proxy == QString::fromUtf8("SOCKS5"))
+        if (proxy == QString::fromUtf8("PROXY") || proxy == QString::fromUtf8("SOCKS5"))
         {
             // ref. https://developer.mozilla.org/en-US/docs/Web/HTTP/Proxy_servers_and_tunneling/Proxy_Auto-Configuration_PAC_file
             // format: "PROXY hostname:port"
             outputLine(proxy.toUpper() + QString::fromUtf8(" ") + url.host() + QString::fromUtf8(":") +
-            QString::number(url.port()));
+                       QString::number(url.port()));
         }
         else
         {
@@ -244,7 +265,7 @@ bool Helper::handleHandlerExists()
     if (*it)
         return true;
 
-    return KMimeTypeTrader::self()->preferredService(QLatin1String("x-scheme-handler/") + protocol) != nullptr;
+    return KApplicationTrader::preferredService(QLatin1String("x-scheme-handler/") + protocol) != nullptr;
 }
 
 bool Helper::handleGetFromExtension()
@@ -288,7 +309,7 @@ bool Helper::handleGetFromType()
 
 bool Helper::writeMimeInfo(QMimeType mime)
 {
-    KService::Ptr service = KMimeTypeTrader::self()->preferredService(mime.name());
+    KService::Ptr service = KApplicationTrader::preferredService(mime.name());
     if (service)
     {
         outputLine(mime.name());
@@ -369,7 +390,7 @@ QStringList Helper::convertToNameFilters(const QString &input)
         if (data.length() == 1)
             ret.append(QStringLiteral("%0 Files(%0)").arg(data[0]));
         else if (data.length() >= 2)
-            ret.append(QStringLiteral("%0 (%1)(%1)").arg(data[1]).arg(data[0]));
+            ret.append(QStringLiteral("%0 (%1)(%1)").arg(data[1], data[0]));
     }
 
     return ret;
@@ -500,8 +521,7 @@ bool Helper::handleReveal()
     QString path = getArgument();
     if (!allArgumentsUsed())
         return false;
-    const KService::List apps =
-        KMimeTypeTrader::self()->query(QString::fromUtf8("inode/directory"), QString::fromUtf8("Application"));
+    const KService::List apps = KApplicationTrader::queryByMimeType(QString::fromUtf8("inode/directory"));
     if (apps.size() != 0)
     {
         QString command = apps.at(0)->exec().split(QString::fromLatin1(" ")).first(); // only the actual command
@@ -517,8 +537,8 @@ bool Helper::handleReveal()
     }
     QFileInfo info(path);
     QString dir = info.dir().path();
-    (void)new KRun(QUrl::fromLocalFile(dir), nullptr); // TODO parent
-    return true;                                    // TODO check for errors?
+    (void)new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), nullptr);
+    return true;                                       // TODO check for errors?
 }
 
 bool Helper::handleRun()
@@ -529,8 +549,14 @@ bool Helper::handleRun()
     QString arg = getArgument();
     if (!allArgumentsUsed())
         return false;
-    return KRun::runCommand(KShell::quoteArg(app) + QString::fromUtf8(" ") + KShell::quoteArg(arg),
-                            nullptr); // TODO parent, ASN
+    auto job = new KIO::CommandLauncherJob(KShell::quoteArg(app), {KShell::quoteArg(arg)});
+#if KIO_VERSION >= QT_VERSION_CHECK(5, 98, 0)
+    job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+#else
+    job->setUiDelegate(new KIO::JobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+#endif
+    job->start();
+    return true;
 }
 
 bool Helper::handleGetDefaultFeedReader()
@@ -568,7 +594,7 @@ bool Helper::handleOpenMail()
     KService::Ptr mail = KService::serviceByDesktopName(command.split(QLatin1Char(' ')).first());
     if (mail)
     {
-        return KRun::runService(*mail, QList<QUrl>(), nullptr); // TODO parent
+        return runApplication(mail, QList<QUrl>()); // TODO parent
     }
     return false;
 }
@@ -582,7 +608,7 @@ bool Helper::handleOpenNews()
     if (news)
     {
         //KApplication::updateUserTimestamp(0); // TODO
-        return KRun::runService(*news, QList<QUrl>(), nullptr); // TODO parent
+        return runApplication(news, QList<QUrl>()); // TODO parent
     }
     return false;
 }
@@ -633,8 +659,7 @@ bool Helper::handleDownloadFinished()
 QString Helper::getAppForProtocol(const QString &protocol)
 {
     /* Inspired by kio's krun.cpp */
-    const KService::Ptr service =
-        KMimeTypeTrader::self()->preferredService(QLatin1String("x-scheme-handler/") + protocol);
+    const KService::Ptr service = KApplicationTrader::preferredService(QLatin1String("x-scheme-handler/") + protocol);
     if (service)
         return service->name();
 
