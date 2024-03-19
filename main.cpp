@@ -119,6 +119,18 @@ static bool runApplication(const KService::Ptr &service, const QList<QUrl> &urls
     return true;
 }
 
+static bool openUrl(QUrl url, QString *mime)
+{
+    auto *job = new KIO::OpenUrlJob(url, *mime);
+#if KIO_VERSION >= QT_VERSION_CHECK(5, 98, 0)
+    job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+#else
+    job->setUiDelegate(new KIO::JobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+#endif
+    job->start();
+    return true;
+}
+
 void Helper::readCommand()
 {
     QString command = readLine();
@@ -222,18 +234,18 @@ bool Helper::handleGetProxy()
     if (!allArgumentsUsed())
         return false;
 
-    // get the url elements
-    // if only the doamin.tld is given, aka. without protocol, this method returns http by default
+    /* get the url elements
+       if only the doamin.tld is given, aka. without protocol, this method returns http by default */
     QString proxy = url.scheme();
 
-    // if the url is valid, we check if it's a proxy
-    // return DIRECT otherwise
+    /* if the url is valid, we check if it's a proxy
+       return DIRECT otherwise */
     if (url.isValid())
     {
         if (proxy == QString::fromUtf8("PROXY") || proxy == QString::fromUtf8("SOCKS5"))
         {
-            // ref. https://developer.mozilla.org/en-US/docs/Web/HTTP/Proxy_servers_and_tunneling/Proxy_Auto-Configuration_PAC_file
-            // format: "PROXY hostname:port"
+            /* ref. https://developer.mozilla.org/en-US/docs/Web/HTTP/Proxy_servers_and_tunneling/Proxy_Auto-Configuration_PAC_file
+            /  format: "PROXY hostname:port" */
             outputLine(proxy.toUpper() + QString::fromUtf8(" ") + url.host() + QString::fromUtf8(":") +
                        QString::number(url.port()));
         }
@@ -509,9 +521,7 @@ bool Helper::handleOpen()
     if (!allArgumentsUsed())
         return false;
 
-    auto ouj = new KIO::OpenUrlJob(url, mime);
-    ouj->start();
-    return true;
+    return openUrl(url, &mime);
 }
 
 bool Helper::handleReveal()
@@ -537,8 +547,7 @@ bool Helper::handleReveal()
     }
     QFileInfo info(path);
     QString dir = info.dir().path();
-    (void)new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), nullptr);
-    return true;                                       // TODO check for errors?
+    return openUrl(QUrl::fromLocalFile(dir), nullptr);
 }
 
 bool Helper::handleRun()
