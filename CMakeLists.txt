@@ -17,6 +17,8 @@ set(KDE_COMPILERSETTINGS_LEVEL ${KF_MIN_VERSION})
 include(KDEInstallDirs)
 include(KDECMakeSettings)
 include(KDECompilerSettings)
+include(KDEClangFormat)
+include(KDEGitCommitHooks)
 include(FeatureSummary)
 
 find_package(
@@ -34,6 +36,18 @@ target_link_libraries(
     KF5::KIOWidgets
     KF5::Notifications
     KF5::WindowSystem)
+
+# add clang-format target for all our real source files
+file(
+    GLOB_RECURSE
+    ALL_CLANG_FORMAT_SOURCE_FILES
+    *.cpp
+    *.h)
+kde_clang_format(${ALL_CLANG_FORMAT_SOURCE_FILES})
+kde_configure_git_pre_commit_hook(CHECKS CLANG_FORMAT)
+
+feature_summary(WHAT ALL INCLUDE_QUIET_PACKAGES
+                         FATAL_ON_MISSING_REQUIRED_PACKAGES)
 
 install(TARGETS kmozillahelper DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/mozilla/)
 install(FILES kmozillahelper.notifyrc DESTINATION ${KNOTIFYRC_INSTALL_DIR})
