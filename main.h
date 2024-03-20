@@ -32,6 +32,7 @@ class Helper : public QObject
     Q_OBJECT
 public:
     Helper();
+
 private:
     bool handleCheck();
     bool handleGetProxy();
@@ -53,18 +54,21 @@ private:
     bool handleDownloadFinished();
     QStringList convertToNameFilters(const QString &input);
     bool writeMimeInfo(QMimeType mime);
-    QString getAppForProtocol(const QString& protocol);
+    QString getAppForProtocol(const QString &protocol);
     bool readArguments(int mincount);
     QString getArgument();
-    bool isArgument(const QString& name); // also discards the line with it
+    bool isArgument(const QString &name); // also discards the line with it
     bool allArgumentsUsed();
     long getArgumentParent();
     void outputLine(QString line, bool escape = true);
     QString readLine();
+
 protected:
-    virtual bool eventFilter(QObject *obj, QEvent *ev) override;
-private slots:
+    bool eventFilter(QObject *obj, QEvent *event) override;
+
+    Q_SLOT
     void readCommand();
+
 private:
     QSocketNotifier notifier;
     QStringList arguments;
